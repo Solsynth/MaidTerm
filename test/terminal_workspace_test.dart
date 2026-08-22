@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
@@ -99,6 +100,184 @@ void main() {
       const Size(1100, 600),
     );
   });
+
+  testWidgets('positions the tab bar from the persisted setting', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    const expectedSizes = {
+      'top': Size(1100, 600),
+      'bottom': Size(1100, 600),
+      'left': Size(916, 640),
+      'right': Size(916, 640),
+    };
+    for (final entry in expectedSizes.entries) {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      SharedPreferences.setMockInitialValues({
+        'terminal.tabBarPosition': entry.key,
+      });
+      await tester.pumpWidget(buildWorkspace());
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSize(find.byType(maidterm.TerminalView)),
+        entry.value,
+        reason: '${entry.key} tab bar placement',
+      );
+    }
+  });
+
+  testWidgets('resizes the vertical tab bar sidebar', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({'terminal.tabBarPosition': 'left'});
+
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(find.byType(maidterm.TerminalView)),
+      const Size(916, 640),
+    );
+
+    await tester.drag(
+      find.byKey(const ValueKey('tab-bar-resize-handle')),
+      const Offset(60, 0),
+    );
+    await tester.pump();
+
+    expect(
+      tester.getSize(find.byType(maidterm.TerminalView)),
+      const Size(856, 640),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      (await SharedPreferences.getInstance()).getDouble('terminal.tabBarWidth'),
+      240.0,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(find.byType(maidterm.TerminalView)),
+      const Size(856, 640),
+    );
+  });
+
+  testWidgets('vertical tab bars still focus terminal input', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({'terminal.tabBarPosition': 'left'});
+
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
+    final session = container
+        .read(terminalWorkspaceProvider)
+        .selectedTab!
+        .session;
+    final output = <Object>[];
+    session.controller.onOutput = output.add;
+    final terminal = find.byType(maidterm.TerminalView);
+    final initialFocusWidgets = find.descendant(
+      of: terminal,
+      matching: find.byType(Focus),
+    );
+    expect(
+      initialFocusWidgets.evaluate().any(
+        (element) =>
+            (element.widget as Focus).focusNode?.debugLabel ==
+                'terminal-input' &&
+            ((element.widget as Focus).focusNode?.hasFocus ?? false),
+      ),
+      isTrue,
+    );
+    await tester.tapAt(tester.getCenter(terminal));
+    await tester.pump();
+
+    final focusWidgets = find.descendant(
+      of: terminal,
+      matching: find.byType(Focus),
+    );
+    final focusedNodes = focusWidgets.evaluate().map(
+      (element) => (element.widget as Focus).focusNode,
+    );
+    expect(
+      focusedNodes.any(
+        (node) =>
+            node?.debugLabel == 'terminal-input' && (node?.hasFocus ?? false),
+      ),
+      isTrue,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    expect(output, isNotEmpty);
+  });
+  testWidgets('switching tabs restores terminal focus', (tester) async {
+    SharedPreferences.setMockInitialValues({'terminal.tabBarPosition': 'left'});
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+
+    final page = find.byType(TerminalWorkspacePage);
+    final container = ProviderScope.containerOf(tester.element(page));
+    final notifier = container.read(terminalWorkspaceProvider.notifier);
+    notifier.openTerminal();
+    await tester.pumpAndSettle();
+    final state = container.read(terminalWorkspaceProvider);
+    notifier.selectTab(state.tabs.first.id);
+    await tester.pumpAndSettle();
+
+    final terminal = find.byType(maidterm.TerminalView);
+    final focused = find
+        .descendant(of: terminal, matching: find.byType(Focus))
+        .evaluate()
+        .map((element) => (element.widget as Focus).focusNode)
+        .any(
+          (node) =>
+              node?.debugLabel == 'terminal-input' && (node?.hasFocus ?? false),
+        );
+    expect(focused, isTrue);
+  });
+
+  testWidgets('cursor focus follows the focused terminal pane', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+    final page = find.byType(TerminalWorkspacePage);
+    final container = ProviderScope.containerOf(tester.element(page));
+    container
+        .read(terminalWorkspaceProvider.notifier)
+        .split(SplitAxis.horizontal);
+    await tester.pumpAndSettle();
+
+    bool hasFocus(Finder view) => find
+        .descendant(of: view, matching: find.byType(Focus))
+        .evaluate()
+        .map((element) => (element.widget as Focus).focusNode)
+        .any(
+          (node) =>
+              node?.debugLabel == 'terminal-input' && (node?.hasFocus ?? false),
+        );
+
+    final terminals = find.byType(maidterm.TerminalView);
+    await tester.tapAt(tester.getCenter(terminals.at(0)));
+    await tester.pumpAndSettle();
+    expect(hasFocus(terminals.at(0)), isTrue);
+    expect(hasFocus(terminals.at(1)), isFalse);
+
+    await tester.tapAt(tester.getCenter(terminals.at(1)));
+    await tester.pump();
+    expect(hasFocus(terminals.at(0)), isFalse);
+    expect(hasFocus(terminals.at(1)), isTrue);
+  });
   testWidgets('ignores transparent background in full-screen mode', (
     tester,
   ) async {
@@ -182,8 +361,8 @@ void main() {
     expect(state.panes.length, 2);
     expect(state.tabs.length, 2);
     expect(find.byType(maidterm.TerminalView), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('workspace-tab-bar')), findsOneWidget);
   });
-
   testWidgets('closing the last tab shows the empty state', (tester) async {
     await tester.pumpWidget(buildWorkspace());
     await tester.pump();

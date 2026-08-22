@@ -4,7 +4,8 @@ enum SplitAxis { horizontal, vertical }
 
 /// Binary tree describing how terminal panes are arranged on screen.
 ///
-/// Leaves reference **pane** ids (each pane owns its own tab strip).
+/// Leaves reference pane ids. The workspace owns one shared tab strip for all
+/// panes.
 sealed class PaneLayout {
   const PaneLayout();
 

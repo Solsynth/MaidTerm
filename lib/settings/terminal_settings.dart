@@ -9,6 +9,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'terminal_color_scheme.dart';
 import 'terminal_fonts.dart';
 
+/// Placement of the workspace-wide tab bar.
+enum TabBarPosition { top, bottom, left, right }
+
 /// User-tunable appearance and terminal behavior, persisted locally.
 @immutable
 class TerminalSettings {
@@ -25,6 +28,8 @@ class TerminalSettings {
     this.transparentBackground = false,
     this.themeMode = ThemeMode.dark,
     this.seedColor = const Color(0xFF0F766E),
+    this.tabBarPosition = TabBarPosition.top,
+    this.tabBarWidth = 180.0,
   });
 
   final double fontSize;
@@ -55,6 +60,13 @@ class TerminalSettings {
 
   /// App accent seed color.
   final Color seedColor;
+
+  /// Position of the shared workspace tab bar.
+  final TabBarPosition tabBarPosition;
+
+  /// Width of left/right tab bars in logical pixels.
+  final double tabBarWidth;
+
   TerminalSettings copyWith({
     double? fontSize,
     bool? cursorBlink,
@@ -68,6 +80,8 @@ class TerminalSettings {
     bool? transparentBackground,
     ThemeMode? themeMode,
     Color? seedColor,
+    TabBarPosition? tabBarPosition,
+    double? tabBarWidth,
   }) => TerminalSettings(
     fontSize: fontSize ?? this.fontSize,
     cursorBlink: cursorBlink ?? this.cursorBlink,
@@ -81,6 +95,8 @@ class TerminalSettings {
     transparentBackground: transparentBackground ?? this.transparentBackground,
     themeMode: themeMode ?? this.themeMode,
     seedColor: seedColor ?? this.seedColor,
+    tabBarPosition: tabBarPosition ?? this.tabBarPosition,
+    tabBarWidth: tabBarWidth ?? this.tabBarWidth,
   );
 }
 
@@ -98,10 +114,12 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
   static const _fullScreenPaneMarginKey = 'terminal.fullScreenPaneMargin';
   static const _fontFamilyKey = 'terminal.fontFamily';
   static const _lightThemeKey = 'terminal.lightTheme';
+  static const _tabBarWidthKey = 'terminal.tabBarWidth';
   static const _darkThemeKey = 'terminal.darkTheme';
   static const _transparentKey = 'terminal.transparentBackground';
   static const _themeModeKey = 'app.themeMode';
   static const _seedColorKey = 'app.seedColor';
+  static const _tabBarPositionKey = 'terminal.tabBarPosition';
 
   @override
   Future<TerminalSettings> build() async {
@@ -138,6 +156,15 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
         _ => ThemeMode.dark,
       },
       seedColor: Color(prefs.getInt(_seedColorKey) ?? 0xFF0F766E),
+      tabBarWidth: _sanitizeTabBarWidth(
+        prefs.getDouble(_tabBarWidthKey) ?? 180.0,
+      ),
+      tabBarPosition: switch (prefs.getString(_tabBarPositionKey)) {
+        'bottom' => TabBarPosition.bottom,
+        'left' => TabBarPosition.left,
+        'right' => TabBarPosition.right,
+        _ => TabBarPosition.top,
+      },
     );
   }
 
@@ -222,6 +249,24 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_seedColorKey, value.toARGB32());
   }
+
+  Future<void> setTabBarWidth(double value) async {
+    final width = _sanitizeTabBarWidth(value);
+    await _update(state.value!.copyWith(tabBarWidth: width));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_tabBarWidthKey, width);
+  }
+
+  Future<void> setTabBarPosition(TabBarPosition value) async {
+    await _update(state.value!.copyWith(tabBarPosition: value));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tabBarPositionKey, value.name);
+  }
+}
+
+double _sanitizeTabBarWidth(double value) {
+  if (!value.isFinite) return 180.0;
+  return value.clamp(140.0, 360.0).toDouble();
 }
 
 EdgeInsets _sanitizePaneMargin(EdgeInsets value) {

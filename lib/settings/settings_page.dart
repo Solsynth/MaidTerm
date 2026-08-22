@@ -129,6 +129,12 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ),
                   _SettingsSection(
+                    title: 'Tab bar',
+                    description:
+                        'Choose where the shared workspace tab bar appears.',
+                    child: _TabBarPositionPicker(settings: data),
+                  ),
+                  _SettingsSection(
                     title: 'Pane margins',
                     description: 'Set independent left, top, right, and bottom margins for normal and full-screen terminal modes.',
                     child: _PaneMarginSettings(
@@ -234,6 +240,28 @@ class _SettingsIntro extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TabBarPositionPicker extends ConsumerWidget {
+  const _TabBarPositionPicker({required this.settings});
+
+  final TerminalSettings settings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SegmentedButton<TabBarPosition>(
+      segments: const [
+        ButtonSegment(value: TabBarPosition.top, label: Text('Top')),
+        ButtonSegment(value: TabBarPosition.bottom, label: Text('Bottom')),
+        ButtonSegment(value: TabBarPosition.left, label: Text('Left')),
+        ButtonSegment(value: TabBarPosition.right, label: Text('Right')),
+      ],
+      selected: {settings.tabBarPosition},
+      onSelectionChanged: (selection) => ref
+          .read(terminalSettingsProvider.notifier)
+          .setTabBarPosition(selection.first),
     );
   }
 }

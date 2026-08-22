@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:maidterm/maidterm.dart' as maidterm;
 
 import '../settings/settings_page.dart';
 import '../settings/terminal_color_scheme.dart';
@@ -10,19 +11,46 @@ import 'session_layout.dart';
 import 'terminal_surface.dart';
 import 'terminal_workspace.dart';
 
-/// The main screen: terminal tabs arranged in resizable split panes.
+/// The main screen: one workspace-wide tab strip around resizable split panes.
 class TerminalWorkspacePage extends ConsumerWidget {
   const TerminalWorkspacePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tabs = ref.watch(terminalWorkspaceProvider);
-    if (tabs.tabs.isEmpty) {
+    final workspace = ref.watch(terminalWorkspaceProvider);
+    if (workspace.tabs.isEmpty) {
       return _EmptyWorkspace();
     }
-    final root = tabs.layout;
+    final root = workspace.layout;
     if (root == null) return _EmptyWorkspace();
-    return _LayoutNode(node: root);
+
+    final settings = ref.watch(terminalSettingsProvider).value;
+    final tabBarPosition = settings?.tabBarPosition ?? TabBarPosition.top;
+    final tabBar = _ResizableTabBar(
+      position: tabBarPosition,
+      initialWidth: settings?.tabBarWidth ?? _workspaceTabBarWidth,
+      onWidthChanged: (width) {
+        if (settings != null) {
+          ref.read(terminalSettingsProvider.notifier).setTabBarWidth(width);
+        }
+      },
+      builder: (width) => _WorkspaceTabBar(
+        workspace: workspace,
+        position: tabBarPosition,
+        width: width,
+      ),
+    );
+    final layout = Expanded(child: _LayoutNode(node: root));
+    final vertical =
+        tabBarPosition == TabBarPosition.left ||
+        tabBarPosition == TabBarPosition.right;
+    final tabBarFirst =
+        tabBarPosition == TabBarPosition.top ||
+        tabBarPosition == TabBarPosition.left;
+
+    return vertical
+        ? Row(children: tabBarFirst ? [tabBar, layout] : [layout, tabBar])
+        : Column(children: tabBarFirst ? [tabBar, layout] : [layout, tabBar]);
   }
 }
 
@@ -178,10 +206,10 @@ class _TerminalPaneView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final workspace = ref.watch(terminalWorkspaceProvider);
-    final pane = workspace.panes[paneId];
-    if (pane == null) return const SizedBox.shrink();
+    if (!workspace.panes.containsKey(paneId)) {
+      return const SizedBox.shrink();
+    }
 
-    final paneTabs = workspace.tabsInPane(paneId);
     final focused = workspace.focusedPaneId == paneId;
     final selected = workspace.selectedTabInPane(paneId);
     final settings = ref.watch(terminalSettingsProvider).value;
@@ -192,274 +220,326 @@ class _TerminalPaneView extends ConsumerWidget {
         ? settings.lightTheme
         : settings.darkTheme;
     final transparent = settings?.transparentBackground ?? false;
+    final terminal = selected == null
+        ? ColoredBox(
+            key: const ValueKey('terminal-pane-backdrop'),
+            color: transparent ? Colors.transparent : terminalScheme.background,
+          )
+        : ValueListenableBuilder<bool>(
+            valueListenable: selected.session.isFullScreen,
+            builder: (context, fullScreen, _) => Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(
+                  child: ColoredBox(
+                    key: const ValueKey('terminal-pane-backdrop'),
+                    color: fullScreen || !transparent
+                        ? terminalScheme.background
+                        : Colors.transparent,
+                  ),
+                ),
+                Listener(
+                  onPointerDown: (_) {
+                    ref
+                        .read(terminalWorkspaceProvider.notifier)
+                        .focusPane(paneId);
+                    selected.session.controller.requestFocus();
+                  },
+                  child: TerminalSurface(tab: selected, autofocus: focused),
+                ),
+              ],
+            ),
+          );
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: () =>
           ref.read(terminalWorkspaceProvider.notifier).focusPane(paneId),
-      child: Column(
-        children: [
-          _PaneTabBar(
-            paneId: paneId,
-            paneTabs: paneTabs,
-            selectedTabId: pane.selectedTabId,
-            focused: focused,
-            showClosePane: workspace.hasSplits,
-          ),
-          Expanded(
-            child: selected == null
-                ? ColoredBox(
-                    key: const ValueKey('terminal-pane-backdrop'),
-                    color: transparent
-                        ? Colors.transparent
-                        : terminalScheme.background,
-                  )
-                : ValueListenableBuilder<bool>(
-                    valueListenable: selected.session.isFullScreen,
-                    builder: (context, fullScreen, _) => Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Positioned.fill(
-                          child: ColoredBox(
-                            key: const ValueKey('terminal-pane-backdrop'),
-                            color: fullScreen || !transparent
-                                ? terminalScheme.background
-                                : Colors.transparent,
-                          ),
-                        ),
-                        TerminalSurface(tab: selected),
-                      ],
-                    ),
-                  ),
-          ),
-        ],
-      ),
+      child: terminal,
     );
   }
 }
 
-const _paneTabBarHeight = 40.0;
+const _workspaceTabBarHeight = 40.0;
+const _workspaceTabBarWidth = 180.0;
 
-class _TabDragData {
-  const _TabDragData({required this.tabId, required this.fromPaneId});
-
-  final String tabId;
-  final String fromPaneId;
-}
-
-/// Ported from MaidKit's sessions tab bar: focus-tinted surface, 2px primary
-/// underline for the active tab, drag-to-reorder with an insert indicator,
-/// middle-click to close, and compact pane actions on the right.
-class _PaneTabBar extends ConsumerWidget {
-  const _PaneTabBar({
-    required this.paneId,
-    required this.paneTabs,
-    required this.selectedTabId,
-    required this.focused,
-    required this.showClosePane,
+class _ResizableTabBar extends StatefulWidget {
+  const _ResizableTabBar({
+    required this.position,
+    required this.initialWidth,
+    required this.onWidthChanged,
+    required this.builder,
   });
 
-  final String paneId;
-  final List<TerminalTab> paneTabs;
-  final String? selectedTabId;
-  final bool focused;
-  final bool showClosePane;
+  final TabBarPosition position;
+  final double initialWidth;
+  final ValueChanged<double> onWidthChanged;
+  final Widget Function(double? width) builder;
 
-  void _acceptTab(WidgetRef ref, _TabDragData data, {int? toIndex}) {
-    ref
-        .read(terminalWorkspaceProvider.notifier)
-        .moveTab(data.tabId, paneId, toIndex: toIndex);
+  @override
+  State<_ResizableTabBar> createState() => _ResizableTabBarState();
+}
+
+class _ResizableTabBarState extends State<_ResizableTabBar> {
+  static const _minWidth = 140.0;
+  static const _maxWidth = 360.0;
+  late double _width;
+  var _dragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _width = _clampWidth(widget.initialWidth);
   }
+
+  @override
+  void didUpdateWidget(_ResizableTabBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_dragging && oldWidget.initialWidth != widget.initialWidth) {
+      _width = _clampWidth(widget.initialWidth);
+    }
+  }
+
+  bool get _vertical =>
+      widget.position == TabBarPosition.left ||
+      widget.position == TabBarPosition.right;
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    final delta = widget.position == TabBarPosition.left
+        ? details.delta.dx
+        : -details.delta.dx;
+    setState(() {
+      _dragging = true;
+      _width = _clampWidth(_width + delta);
+    });
+  }
+
+  void _onDragEnd() {
+    if (!_dragging) return;
+    _dragging = false;
+    widget.onWidthChanged(_width);
+  }
+
+  double _clampWidth(double width) =>
+      width.clamp(_minWidth, _maxWidth).toDouble();
+
+  @override
+  Widget build(BuildContext context) {
+    final tabBar = widget.builder(_vertical ? _width : null);
+    if (!_vertical) return tabBar;
+
+    final scheme = Theme.of(context).colorScheme;
+    final handle = MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        key: const ValueKey('tab-bar-resize-handle'),
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragUpdate: _onDragUpdate,
+        onHorizontalDragEnd: (_) => _onDragEnd(),
+        onHorizontalDragCancel: _onDragEnd,
+        child: ColoredBox(
+          color: scheme.outlineVariant.withValues(alpha: 0.7),
+          child: const SizedBox(width: 4, height: double.infinity),
+        ),
+      ),
+    );
+    final sidebar = SizedBox(width: _width, child: tabBar);
+    return widget.position == TabBarPosition.left
+        ? Row(children: [sidebar, handle])
+        : Row(children: [handle, sidebar]);
+  }
+}
+
+class _WorkspaceTabBar extends ConsumerWidget {
+  const _WorkspaceTabBar({
+    required this.workspace,
+    required this.position,
+    this.width,
+  });
+
+  final TerminalWorkspaceState workspace;
+  final TabBarPosition position;
+  final double? width;
+
+  bool get _vertical =>
+      position == TabBarPosition.left || position == TabBarPosition.right;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final notifier = ref.read(terminalWorkspaceProvider.notifier);
+
+    void reorderTab(String tabId, {int? toIndex}) {
+      notifier.reorderTab(tabId, toIndex ?? workspace.tabs.length);
+    }
+
+    Widget actionButton({
+      required String tooltip,
+      required Widget icon,
+      required VoidCallback onPressed,
+    }) => IconButton(
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(
+        minWidth: _workspaceTabBarHeight,
+        minHeight: _workspaceTabBarHeight,
+      ),
+      onPressed: onPressed,
+      icon: icon,
+    );
+
+    final focusedPaneId = workspace.focusedPaneId;
+    final actions = <Widget>[
+      actionButton(
+        tooltip: 'Split right',
+        icon: const Icon(Symbols.vertical_split, size: 20),
+        onPressed: () {
+          if (focusedPaneId != null) {
+            notifier.split(SplitAxis.horizontal);
+          }
+        },
+      ),
+      actionButton(
+        tooltip: 'Split below',
+        icon: const Icon(Symbols.horizontal_split, size: 20),
+        onPressed: () {
+          if (focusedPaneId != null) {
+            notifier.split(SplitAxis.vertical);
+          }
+        },
+      ),
+      actionButton(
+        tooltip: 'New tab',
+        icon: const Icon(Symbols.add, size: 20),
+        onPressed: notifier.openTerminal,
+      ),
+      if (workspace.hasSplits)
+        actionButton(
+          tooltip: 'Close pane',
+          icon: const Icon(Symbols.close, size: 18),
+          onPressed: () {
+            final pane = focusedPaneId == null
+                ? null
+                : workspace.panes[focusedPaneId];
+            if (pane == null) return;
+            for (final tabId in [...pane.tabIds]) {
+              notifier.closeTab(tabId);
+            }
+          },
+        ),
+      if (_vertical) const Spacer(),
+      actionButton(
+        tooltip: 'Settings (Cmd+,)',
+        icon: const Icon(Symbols.settings, size: 18),
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const SettingsPage())),
+      ),
+      const SizedBox(width: 4),
+    ];
+    final tabStrip = Expanded(
+      child: DragTarget<_TabDragData>(
+        onWillAcceptWithDetails: (details) => details.data.tabId.isNotEmpty,
+        onAcceptWithDetails: (details) => reorderTab(details.data.tabId),
+        builder: (context, candidate, rejected) {
+          final hovering = candidate.isNotEmpty;
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              color: hovering ? scheme.primary.withValues(alpha: 0.08) : null,
+            ),
+            child: ListView.builder(
+              scrollDirection: _vertical ? Axis.vertical : Axis.horizontal,
+              padding: EdgeInsets.zero,
+              itemCount: workspace.tabs.length + 1,
+              itemBuilder: (context, index) {
+                if (index == workspace.tabs.length) {
+                  return _TabDropTail(
+                    vertical: _vertical,
+                    hovering: hovering,
+                    onAccept: (data) =>
+                        reorderTab(data.tabId, toIndex: workspace.tabs.length),
+                  );
+                }
+                final tab = workspace.tabs[index];
+                final paneId = workspace.paneIdForTab(tab.id);
+                final selected = tab.id == workspace.selectedTab?.id;
+                return _DraggablePaneTab(
+                  key: ValueKey(tab.id),
+                  tab: tab,
+                  selected: selected,
+                  index: index,
+                  position: position,
+                  onSelect: () {
+                    if (paneId == null) return;
+                    notifier.selectTab(tab.id, paneId: paneId);
+                    tab.session.controller.requestFocus();
+                  },
+                  onClose: () => notifier.closeTab(tab.id),
+                  onAccept: (data, insertIndex) =>
+                      reorderTab(data.tabId, toIndex: insertIndex),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+    final actionBar = SizedBox(
+      height: _workspaceTabBarHeight,
+      child: _vertical
+          ? Row(mainAxisSize: MainAxisSize.max, children: actions)
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(mainAxisSize: MainAxisSize.min, children: actions),
+            ),
+    );
+    final layout = Flex(
+      direction: _vertical ? Axis.vertical : Axis.horizontal,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [tabStrip, actionBar],
+    );
 
     return Material(
-      color: focused ? scheme.surfaceContainerHigh : scheme.surfaceContainerLow,
+      key: const ValueKey('workspace-tab-bar'),
+      color: scheme.surfaceContainerHigh,
       child: SizedBox(
-        height: _paneTabBarHeight,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: DragTarget<_TabDragData>(
-                onWillAcceptWithDetails: (details) =>
-                    details.data.tabId.isNotEmpty,
-                onAcceptWithDetails: (details) => _acceptTab(ref, details.data),
-                builder: (context, candidate, rejected) {
-                  final hovering = candidate.isNotEmpty;
-                  return DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: hovering
-                          ? scheme.primary.withValues(alpha: 0.08)
-                          : null,
-                    ),
-                    child: paneTabs.isEmpty
-                        ? Align(
-                            alignment: Alignment.centerLeft,
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 12),
-                              child: Text(
-                                hovering ? 'Drop tab here' : 'New terminal',
-                                style: Theme.of(context).textTheme.labelMedium
-                                    ?.copyWith(color: scheme.onSurfaceVariant),
-                              ),
-                            ),
-                          )
-                        : ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: EdgeInsets.zero,
-                            // Trailing slot so tabs can be dropped after the
-                            // last item.
-                            itemCount: paneTabs.length + 1,
-                            itemBuilder: (context, index) {
-                              if (index == paneTabs.length) {
-                                return _TabDropTail(
-                                  hovering: hovering,
-                                  onAccept: (data) => _acceptTab(
-                                    ref,
-                                    data,
-                                    toIndex: paneTabs.length,
-                                  ),
-                                );
-                              }
-                              final tab = paneTabs[index];
-                              final selected = tab.id == selectedTabId;
-                              return _DraggablePaneTab(
-                                key: ValueKey(tab.id),
-                                tab: tab,
-                                paneId: paneId,
-                                selected: selected,
-                                index: index,
-                                onSelect: () {
-                                  ref
-                                      .read(terminalWorkspaceProvider.notifier)
-                                      .focusPane(paneId);
-                                  ref
-                                      .read(terminalWorkspaceProvider.notifier)
-                                      .selectTab(tab.id, paneId: paneId);
-                                },
-                                onClose: () => ref
-                                    .read(terminalWorkspaceProvider.notifier)
-                                    .closeTab(tab.id),
-                                onAccept: (data, insertIndex) =>
-                                    _acceptTab(ref, data, toIndex: insertIndex),
-                              );
-                            },
-                          ),
-                  );
-                },
-              ),
-            ),
-            IconButton(
-              tooltip: 'Split right',
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: _paneTabBarHeight,
-                minHeight: _paneTabBarHeight,
-              ),
-              onPressed: () {
-                ref.read(terminalWorkspaceProvider.notifier).focusPane(paneId);
-                ref
-                    .read(terminalWorkspaceProvider.notifier)
-                    .split(SplitAxis.horizontal);
-              },
-              icon: const Icon(Symbols.vertical_split, size: 20),
-            ),
-            IconButton(
-              tooltip: 'Split below',
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: _paneTabBarHeight,
-                minHeight: _paneTabBarHeight,
-              ),
-              onPressed: () {
-                ref.read(terminalWorkspaceProvider.notifier).focusPane(paneId);
-                ref
-                    .read(terminalWorkspaceProvider.notifier)
-                    .split(SplitAxis.vertical);
-              },
-              icon: const Icon(Symbols.horizontal_split, size: 20),
-            ),
-            IconButton(
-              tooltip: 'New tab',
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: _paneTabBarHeight,
-                minHeight: _paneTabBarHeight,
-              ),
-              onPressed: () {
-                ref.read(terminalWorkspaceProvider.notifier).focusPane(paneId);
-                ref.read(terminalWorkspaceProvider.notifier).openTerminal();
-              },
-              icon: const Icon(Symbols.add, size: 20),
-            ),
-            if (showClosePane)
-              IconButton(
-                tooltip: 'Close pane',
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: _paneTabBarHeight,
-                  minHeight: _paneTabBarHeight,
-                ),
-                onPressed: () {
-                  final pane = ref
-                      .read(terminalWorkspaceProvider)
-                      .panes[paneId];
-                  if (pane == null) return;
-                  for (final tabId in pane.tabIds) {
-                    ref
-                        .read(terminalWorkspaceProvider.notifier)
-                        .closeTab(tabId);
-                  }
-                },
-                icon: const Icon(Symbols.close, size: 18),
-              ),
-            IconButton(
-              tooltip: 'Settings (Cmd+,)',
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: _paneTabBarHeight,
-                minHeight: _paneTabBarHeight,
-              ),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
-              ),
-              icon: const Icon(Symbols.settings, size: 18),
-            ),
-            const SizedBox(width: 4),
-          ],
-        ),
+        width: _vertical ? (width ?? _workspaceTabBarWidth) : null,
+        height: _vertical ? null : _workspaceTabBarHeight,
+        child: layout,
       ),
     );
   }
+}
+
+class _TabDragData {
+  const _TabDragData({required this.tabId});
+
+  final String tabId;
 }
 
 class _DraggablePaneTab extends StatelessWidget {
   const _DraggablePaneTab({
     super.key,
     required this.tab,
-    required this.paneId,
     required this.selected,
     required this.index,
+    required this.position,
     required this.onSelect,
     required this.onClose,
     required this.onAccept,
   });
 
   final TerminalTab tab;
-  final String paneId;
   final bool selected;
   final int index;
+  final TabBarPosition position;
   final VoidCallback onSelect;
   final VoidCallback onClose;
   final void Function(_TabDragData data, int insertIndex) onAccept;
+
+  bool get _vertical =>
+      position == TabBarPosition.left || position == TabBarPosition.right;
 
   @override
   Widget build(BuildContext context) {
@@ -467,15 +547,17 @@ class _DraggablePaneTab extends StatelessWidget {
     final chip = _PaneTabChip(
       tab: tab,
       selected: selected,
+      position: position,
       onSelect: onSelect,
       onClose: onClose,
     );
-    final dragData = _TabDragData(tabId: tab.id, fromPaneId: paneId);
+    final dragData = _TabDragData(tabId: tab.id);
     final feedback = Material(
       elevation: 4,
       color: scheme.surfaceContainerHighest,
       child: SizedBox(
-        height: _paneTabBarHeight,
+        width: _vertical ? _workspaceTabBarWidth : null,
+        height: _workspaceTabBarHeight,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Row(
@@ -518,16 +600,23 @@ class _DraggablePaneTab extends StatelessWidget {
       builder: (context, candidate, rejected) {
         final showInsert = candidate.isNotEmpty;
         return SizedBox(
-          height: _paneTabBarHeight,
-          child: Row(
+          width: _vertical ? double.infinity : null,
+          height: _workspaceTabBarHeight,
+          child: Flex(
+            direction: _vertical ? Axis.vertical : Axis.horizontal,
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (showInsert)
-                Container(
-                  width: 2,
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  color: scheme.primary,
+                SizedBox(
+                  width: _vertical ? double.infinity : 2,
+                  height: _vertical ? 2 : null,
+                  child: Container(
+                    margin: _vertical
+                        ? const EdgeInsets.symmetric(horizontal: 8)
+                        : const EdgeInsets.symmetric(vertical: 8),
+                    color: scheme.primary,
+                  ),
                 ),
               draggable,
             ],
@@ -542,20 +631,30 @@ class _PaneTabChip extends StatelessWidget {
   const _PaneTabChip({
     required this.tab,
     required this.selected,
+    required this.position,
     required this.onSelect,
     required this.onClose,
   });
 
   final TerminalTab tab;
   final bool selected;
+  final TabBarPosition position;
   final VoidCallback onSelect;
   final VoidCallback onClose;
+
+  bool get _vertical =>
+      position == TabBarPosition.left || position == TabBarPosition.right;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final selectedBorder = BorderSide(
+      color: selected ? scheme.primary : Colors.transparent,
+      width: 2,
+    );
     return SizedBox(
-      height: _paneTabBarHeight,
+      width: _vertical ? double.infinity : null,
+      height: _workspaceTabBarHeight,
       child: Listener(
         onPointerDown: (event) {
           if (event.buttons & kMiddleMouseButton != 0) {
@@ -566,28 +665,63 @@ class _PaneTabChip extends StatelessWidget {
           onTap: onSelect,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: selected ? scheme.primary : Colors.transparent,
-                  width: 2,
-                ),
-              ),
+              border: _vertical
+                  ? Border(
+                      left: position == TabBarPosition.left
+                          ? selectedBorder
+                          : BorderSide.none,
+                      right: position == TabBarPosition.right
+                          ? selectedBorder
+                          : BorderSide.none,
+                    )
+                  : Border(bottom: selectedBorder),
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: _vertical ? MainAxisSize.max : MainAxisSize.min,
                 children: [
-                  Icon(
-                    Symbols.terminal,
-                    size: 16,
-                    color: selected ? scheme.primary : null,
+                  ValueListenableBuilder<maidterm.TerminalProgress?>(
+                    valueListenable: tab.session.progress,
+                    builder: (context, progress, _) {
+                      final color = switch (progress?.state) {
+                        .error => scheme.error,
+                        .paused => scheme.tertiary,
+                        _ => selected ? scheme.primary : scheme.onSurface,
+                      };
+                      if (progress == null ||
+                          progress.state == .remove ||
+                          progress.state == .paused) {
+                        return Icon(
+                          progress?.state == .paused
+                              ? Symbols.pause_circle
+                              : Symbols.terminal,
+                          size: 16,
+                          color: color,
+                        );
+                      }
+                      return SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          value: progress.value == null
+                              ? null
+                              : progress.value! / 100,
+                          color: color,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    tab.title,
-                    style: Theme.of(context).textTheme.labelMedium
-                        ?.copyWith(color: selected ? scheme.primary : null),
+                  Flexible(
+                    fit: _vertical ? FlexFit.tight : FlexFit.loose,
+                    child: Text(
+                      tab.title,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelMedium
+                          ?.copyWith(color: selected ? scheme.primary : null),
+                    ),
                   ),
                   const SizedBox(width: 2),
                   IconButton(
@@ -612,8 +746,13 @@ class _PaneTabChip extends StatelessWidget {
 }
 
 class _TabDropTail extends StatelessWidget {
-  const _TabDropTail({required this.hovering, required this.onAccept});
+  const _TabDropTail({
+    required this.vertical,
+    required this.hovering,
+    required this.onAccept,
+  });
 
+  final bool vertical;
   final bool hovering;
   final void Function(_TabDragData data) onAccept;
 
@@ -626,11 +765,15 @@ class _TabDropTail extends StatelessWidget {
       builder: (context, candidate, rejected) {
         final active = candidate.isNotEmpty || hovering;
         return SizedBox(
-          width: 28,
-          height: _paneTabBarHeight,
+          width: vertical ? double.infinity : 28,
+          height: vertical ? 28 : _workspaceTabBarHeight,
           child: active
               ? Align(
-                  child: Container(width: 2, height: 20, color: scheme.primary),
+                  child: Container(
+                    width: vertical ? 20 : 2,
+                    height: vertical ? 2 : 20,
+                    color: scheme.primary,
+                  ),
                 )
               : null,
         );

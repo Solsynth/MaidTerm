@@ -18,30 +18,27 @@ final processTitleMonitorProvider = Provider<ProcessTitleMonitor>(
 /// Creates a shell session bound to a workspace tab, applying the terminal
 /// settings (shell, cursor) at spawn time. Overridable in tests, where
 /// plugin frameworks are not linked (`autoStart: false`).
-final localShellSessionFactoryProvider =
-    Provider<LocalShellSession Function()>((ref) {
-      final settings = ref.watch(terminalSettingsProvider).value;
-      final shell = settings?.shellPath;
-      final cursorBlink = settings?.cursorBlink ?? true;
-      final cursorStyle =
-          settings?.cursorStyle ?? maidterm.CursorShape.block;
-      final monitor = ref.watch(processTitleMonitorProvider);
-      return () => LocalShellSession(
-        shell: shell,
-        cursorBlink: cursorBlink,
-        cursorStyle: cursorStyle,
-        processMonitor: monitor,
-      );
-    });
+final localShellSessionFactoryProvider = Provider<LocalShellSession Function()>(
+  (ref) {
+    final settings = ref.watch(terminalSettingsProvider).value;
+    final shell = settings?.shellPath;
+    final cursorBlink = settings?.cursorBlink ?? true;
+    final cursorStyle = settings?.cursorStyle ?? maidterm.CursorShape.block;
+    final monitor = ref.watch(processTitleMonitorProvider);
+    return () => LocalShellSession(
+      shell: shell,
+      cursorBlink: cursorBlink,
+      cursorStyle: cursorStyle,
+      processMonitor: monitor,
+    );
+  },
+);
 
 const _uuid = Uuid();
 
 /// A live local shell, identified for tab management.
 class TerminalTab {
-  TerminalTab({
-    required this.id,
-    required this.session,
-  });
+  TerminalTab({required this.id, required this.session});
 
   final String id;
   final LocalShellSession session;
@@ -58,7 +55,8 @@ class TerminalTab {
   int get hashCode => id.hashCode;
 }
 
-/// A pane owns a tab strip and shows one selected tab at a time.
+/// A terminal pane owns the selected terminal surface. Tab ordering is shared
+/// across the workspace so split panes never need separate tab strips.
 class TerminalPane {
   const TerminalPane({
     required this.id,
@@ -179,7 +177,13 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     final paneId = _uuid.v4();
     return TerminalWorkspaceState(
       tabs: [tab],
-      panes: {paneId: TerminalPane(id: paneId, tabIds: [tab.id], selectedTabId: tab.id)},
+      panes: {
+        paneId: TerminalPane(
+          id: paneId,
+          tabIds: [tab.id],
+          selectedTabId: tab.id,
+        ),
+      },
       layout: PaneLayoutLeaf(paneId),
       focusedPaneId: paneId,
     );
@@ -207,10 +211,7 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     }
     state = _rebuild(
       tabs: [...state.tabs, tab],
-      panes: {
-        ...state.panes,
-        focusId: state.panes[focusId]!.withTab(tab.id),
-      },
+      panes: {...state.panes, focusId: state.panes[focusId]!.withTab(tab.id)},
     );
   }
 
@@ -314,6 +315,20 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     );
   }
 
+  /// Reorders the workspace-wide tab strip without changing pane ownership.
+  void reorderTab(String tabId, int toIndex) {
+    final fromIndex = state.tabs.indexWhere((tab) => tab.id == tabId);
+    if (fromIndex < 0) return;
+
+    final nextTabs = [...state.tabs]..removeAt(fromIndex);
+    var insertAt = toIndex.clamp(0, state.tabs.length);
+    if (fromIndex < insertAt && insertAt < state.tabs.length) {
+      insertAt--;
+    }
+    nextTabs.insert(insertAt.clamp(0, nextTabs.length), state.tabs[fromIndex]);
+    state = _rebuild(tabs: nextTabs);
+  }
+
   /// Closes [tabId]; if its pane empties, the pane closes too.
   void closeTab(String tabId) {
     final tab = state.tabs.where((t) => t.id == tabId).firstOrNull;
@@ -379,7 +394,13 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     final paneId = _uuid.v4();
     state = TerminalWorkspaceState(
       tabs: [tab],
-      panes: {paneId: TerminalPane(id: paneId, tabIds: [tab.id], selectedTabId: tab.id)},
+      panes: {
+        paneId: TerminalPane(
+          id: paneId,
+          tabIds: [tab.id],
+          selectedTabId: tab.id,
+        ),
+      },
       layout: PaneLayoutLeaf(paneId),
       focusedPaneId: paneId,
     );
