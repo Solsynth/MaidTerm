@@ -1,17 +1,65 @@
-# terminal
+# MaidTerm
 
-A new Flutter project.
+MaidTerm is a local-first desktop terminal emulator for macOS, Windows, and
+Linux, built on the [MaidTerm engine](packages/maidterm) — a Flutter terminal
+engine that wraps the Ghostty terminal emulator core through Dart FFI.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- Local shell sessions over a real PTY, with process-level title tracking
+- A multi-session workspace: multiple terminals in tabs and split layouts
+- Terminal settings: color schemes, fonts, and cursor/behavior preferences
+  persisted locally
+- Full extension support from the engine — kitty graphics protocol, kitty
+  keyboard protocol, sixel, truecolor, OSC 0/2/7/10/11/52/133, OSC 8
+  hyperlinks, and text reflow
+- A frameless desktop window frame rendered by the app's own UI layer
 
-A few resources to get you started if this is your first Flutter project:
+## Architecture
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```
+MaidTerm app (this repository)
+├── lib/workspace   — session layouts, terminal workspaces and pages
+├── lib/shell       — PTY-backed local shell sessions, process title monitor
+├── lib/settings    — theme, font, and behavior settings
+└── packages/
+    ├── maidterm    — the terminal engine (emulation + rendering)
+    └── flutter_pty — PTY plugin used for local shell sessions
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The app is the thin product layer: it spawns shells with
+`flutter_pty`, feeds PTY output into a `TerminalController`, and renders the
+result through `TerminalView`. All terminal behavior — escape sequence
+handling, graphics protocols, input encoding, and painting — lives in the
+`maidterm` engine package.
+
+## Tech stack
+
+- [Flutter](https://flutter.dev) / Dart (SDK ^3.13.0)
+- [maidterm](packages/maidterm) — terminal engine based on
+  [libghostty](https://github.com/elias8/libghostty) (Dart FFI bindings to
+  Ghostty's Zig-based `libghostty-vt` emulator core)
+- [flutter_pty](packages/flutter_pty) — PTY sessions
+- [hooks_riverpod](https://pub.dev/packages/hooks_riverpod) — state
+- [island_ui_foundation](https://src.solsynth.dev/SoSYS/Solian) /
+  [material_ui](https://pub.dev/packages/material_ui) — theming and widgets
+- [window_manager](https://pub.dev/packages/window_manager) — desktop window
+  frame
+
+## Getting started
+
+```sh
+flutter pub get
+flutter run -d macos   # or -d windows / -d linux
+```
+
+The engine's native library is fetched by a build hook: a prebuilt
+`libghostty` binary is downloaded automatically, or compiled from source when
+Zig is installed (see `packages/maidterm`).
+
+## Testing
+
+```sh
+flutter test              # app widget tests
+(cd packages/maidterm && dart test)   # engine unit tests
+```
