@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:maidterm/src/widgets/sixel_decoder.dart';
+import 'package:maidterm/src/foundation/terminal_progress.dart';
 
 /// Rewrites the terminal input stream to close two graphics-protocol gaps
 /// in the libghostty core:
@@ -25,6 +26,9 @@ final class VtGraphicsRewriter {
   /// Supplies the next image id for injected Kitty transmits. Ids must
   /// stay out of the range the core auto-assigns (0x7FFFFFFF upward).
   final int Function() nextImageId;
+
+  /// Receives OSC 9;4 progress reports.
+  void Function(TerminalProgress progress)? onProgress;
 
   /// Receives OSC 9/777 desktop notification requests.
   void Function(String title, String body)? onNotification;
@@ -233,9 +237,16 @@ final class VtGraphicsRewriter {
     final args = payload.substring(separator + 1);
     String? title;
     String? body;
-
     if (command == '9') {
-      if (args.isNotEmpty) body = args;
+      final progressParams = args.startsWith('4;') ? args.substring(2) : null;
+      final progress = progressParams == null
+          ? null
+          : TerminalProgress.tryParse(progressParams);
+      if (progress != null) {
+        onProgress?.call(progress);
+      } else if (args.isNotEmpty) {
+        body = args;
+      }
     } else if (command == '777') {
       final parts = args.split(';');
       if (parts.isNotEmpty && parts.first == 'notify') {

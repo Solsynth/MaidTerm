@@ -12,8 +12,7 @@ powers the MaidKit.
 - Terminal settings: color schemes, fonts, and cursor/behavior preferences
   persisted locally
 - Full extension support from the engine — kitty graphics protocol, kitty
-  keyboard protocol, sixel, truecolor, OSC 0/2/7/10/11/52/133, OSC 8
-  hyperlinks, and text reflow
+  keyboard protocol, sixel, truecolor, OSC 0/2/7/9;4/10/11/52/133, OSC 8
 - A frameless desktop window frame rendered by the app's own UI layer
 
 ## Architecture

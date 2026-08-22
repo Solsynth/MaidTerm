@@ -39,8 +39,9 @@ Extensions:
 - **Sixel graphics** — a Dart sixel decoder in the input path that re-emits
   decoded images through the kitty graphics pipeline, moving the cursor like
   a native sixel renderer
-- **OSC 0/2** titles, **OSC 7** working directory, **OSC 10/11** color
-  queries, **OSC 52** clipboard, **OSC 133** semantic prompts
+- **OSC 0/2** titles, **OSC 7** working directory, **OSC 9;4** progress
+  reports, **OSC 10/11** color queries, **OSC 52** clipboard, **OSC 133**
+  semantic prompts
 - **OSC 8** hyperlinks with link matching and activation modifiers
 
 ## Usage

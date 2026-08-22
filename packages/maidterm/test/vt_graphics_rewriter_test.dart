@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:maidterm/src/foundation/terminal_progress.dart';
 import 'package:maidterm/src/widgets/vt_graphics_rewriter.dart';
 import 'package:test/test.dart';
 
@@ -150,6 +151,49 @@ void main() {
       expect(title, isEmpty);
       expect(body, 'Build finished');
     });
+
+    test('reports OSC 9;4 progress without creating a notification', () {
+      final r = rewriter();
+      TerminalProgressState? state;
+      int? value;
+      var notificationCalled = false;
+      r
+        ..onProgress = (progress) {
+          state = progress.state;
+          value = progress.value;
+        }
+        ..onNotification = (_, _) => notificationCalled = true;
+
+      const sequence = '\x1b]9;4;1;50\x07';
+      expect(asString(out(r, sequence)), sequence);
+      expect(state, TerminalProgressState.normal);
+      expect(value, 50);
+      expect(notificationCalled, isFalse);
+    });
+
+    test(
+      'accepts indeterminate, paused, error, and remove progress states',
+      () {
+        final r = rewriter();
+        final reports = <TerminalProgress>[];
+        r.onProgress = reports.add;
+        for (final sequence in [
+          '\x1b]9;4;3\x07',
+          '\x1b]9;4;4;20\x07',
+          '\x1b]9;4;2;80\x07',
+          '\x1b]9;4;0\x07',
+        ]) {
+          expect(asString(out(r, sequence)), sequence);
+        }
+
+        expect(reports, hasLength(4));
+        expect(reports[0].state, TerminalProgressState.indeterminate);
+        expect(reports[1].state, TerminalProgressState.paused);
+        expect(reports[1].value, 20);
+        expect(reports[2].state, TerminalProgressState.error);
+        expect(reports[3].state, TerminalProgressState.remove);
+      },
+    );
 
     test('reports OSC 777 notify title and body', () {
       final r = rewriter();

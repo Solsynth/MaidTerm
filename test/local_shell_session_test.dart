@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maidterm_app/shell/local_shell_session.dart';
+import 'package:maidterm/maidterm.dart' as maidterm;
 
 void main() {
   /// Feeds bytes into the engine exactly as pty output would arrive, then
@@ -39,6 +40,18 @@ void main() {
     final s = session();
     s.controller.write(utf8.encode('\x1b]7;file:///tmp/x\x07'));
     expect(s.title.value, '/tmp/x');
+    s.dispose();
+  });
+
+  test('OSC 9;4 progress reports update and clear session progress', () {
+    final s = session();
+
+    s.controller.write(utf8.encode('\x1b]9;4;1;50\x07'));
+    expect(s.progress.value?.state, maidterm.TerminalProgressState.normal);
+    expect(s.progress.value?.value, 50);
+
+    s.controller.write(utf8.encode('\x1b]9;4;0\x07'));
+    expect(s.progress.value, isNull);
     s.dispose();
   });
 

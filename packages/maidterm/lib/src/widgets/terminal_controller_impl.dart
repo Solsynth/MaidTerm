@@ -85,6 +85,9 @@ class TerminalControllerImpl extends TerminalController
     _vtGraphics.onNotification = (title, body) {
       onNotification?.call(title, body);
     };
+    _vtGraphics.onProgress = (progress) {
+      onProgress?.call(progress);
+    };
     _textInput
       ..onTextCommitted = _handleTextCommitted
       ..onDelete = _handleDelete

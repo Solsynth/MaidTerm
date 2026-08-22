@@ -42,6 +42,10 @@ abstract class TerminalController extends ChangeNotifier
   /// [write] and does not display anything by itself.
   void Function(String title, String body)? onNotification;
 
+  /// Called when the terminal receives a ConEmu-style progress report
+  /// (OSC 9;4). The callback runs during [write].
+  void Function(TerminalProgress progress)? onProgress;
+
   /// Called when the terminal title changes. Read [title] for the value.
   VoidCallback? onTitleChanged;
 

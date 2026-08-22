@@ -41,10 +41,12 @@ class LocalShellSession {
       ),
     );
     _displayTitle = ValueNotifier<String>(_fallbackTitle);
+    _progress = ValueNotifier<maidterm.TerminalProgress?>(null);
     _fullScreen = ValueNotifier<bool>(false);
     _controller.addListener(_onControllerChanged);
     _controller.onBell = _handleBell;
     _controller.onNotification = _handleNotification;
+    _controller.onProgress = _handleProgress;
     _controller.onOutput = _writeToPty;
     _controller.onResize = _resizePty;
     _controller.onTitleChanged = _onTitleChanged;
@@ -91,6 +93,7 @@ class LocalShellSession {
   final String _fallbackTitle;
 
   late final ValueNotifier<String> _displayTitle;
+  late final ValueNotifier<maidterm.TerminalProgress?> _progress;
 
   /// Whether the running program owns the terminal's alternate screen.
   ///
@@ -109,6 +112,9 @@ class LocalShellSession {
   /// foreground process name, else the working directory for shells, else
   /// the shell name.
   ValueListenable<String> get title => _displayTitle;
+
+  /// Live OSC 9;4 progress reported by the running program.
+  ValueListenable<maidterm.TerminalProgress?> get progress => _progress;
 
   void _writeToPty(Uint8List bytes) {
     final pty = _pty;
@@ -136,6 +142,10 @@ class LocalShellSession {
       title: title.trim().isEmpty ? 'MaidTerm' : title.trim(),
       body: body,
     );
+  }
+
+  void _handleProgress(maidterm.TerminalProgress progress) {
+    _progress.value = progress.state == .remove ? null : progress;
   }
 
   void _resizePty(int cols, int rows, int pixelWidth, int pixelHeight) {
@@ -208,6 +218,7 @@ class LocalShellSession {
     _controller.onResize = null;
     _controller.onTitleChanged = null;
     _controller.onPwdChanged = null;
+    _controller.onProgress = null;
     final pid = _ptyPid;
     if (pid != null) _monitor?.untrack(pid);
     final pty = _pty;
@@ -219,6 +230,7 @@ class LocalShellSession {
     }
     _fullScreen.dispose();
     _displayTitle.dispose();
+    _progress.dispose();
     _controller.dispose();
   }
 

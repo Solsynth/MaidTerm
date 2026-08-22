@@ -32,6 +32,8 @@ export 'src/foundation/dynamic_color.dart' show DynamicColor;
 export 'src/foundation/input_types.dart' show KeyboardState, MouseAutoHide;
 export 'src/foundation/terminal_config.dart'
     show ScrollToBottom, TerminalConfig;
+export 'src/foundation/terminal_progress.dart'
+    show TerminalProgress, TerminalProgressState;
 export 'src/foundation/terminal_gesture_settings.dart'
     show
         GestureModifier,
