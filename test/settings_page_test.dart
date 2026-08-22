@@ -7,8 +7,8 @@ import 'package:material_ui/material_ui.dart'
     show GlobalMaterialLocalizations;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:terminal/settings/settings_page.dart';
-import 'package:terminal/settings/terminal_settings.dart';
+import 'package:maidterm_app/settings/settings_page.dart';
+import 'package:maidterm_app/settings/terminal_settings.dart';
 
 void main() {
   testWidgets('settings page renders current values and persists changes', (

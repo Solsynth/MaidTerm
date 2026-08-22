@@ -7,7 +7,13 @@ import 'package:uuid/uuid.dart';
 
 import '../settings/terminal_settings.dart';
 import '../shell/local_shell_session.dart';
+import '../shell/process_title_monitor.dart';
 import 'session_layout.dart';
+
+/// Shared poller resolving each tab's foreground process name for titles.
+final processTitleMonitorProvider = Provider<ProcessTitleMonitor>(
+  (ref) => ProcessTitleMonitor(),
+);
 
 /// Creates a shell session bound to a workspace tab, applying the terminal
 /// settings (shell, cursor) at spawn time. Overridable in tests, where
@@ -19,10 +25,12 @@ final localShellSessionFactoryProvider =
       final cursorBlink = settings?.cursorBlink ?? true;
       final cursorStyle =
           settings?.cursorStyle ?? maidterm.CursorShape.block;
+      final monitor = ref.watch(processTitleMonitorProvider);
       return () => LocalShellSession(
         shell: shell,
         cursorBlink: cursorBlink,
         cursorStyle: cursorStyle,
+        processMonitor: monitor,
       );
     });
 
@@ -33,15 +41,15 @@ class TerminalTab {
   TerminalTab({
     required this.id,
     required this.session,
-    required this.title,
   });
 
   final String id;
   final LocalShellSession session;
 
-  /// Display title; defaults to the shell name, later replaced by the
-  /// working directory when the shell reports it.
-  String title;
+  /// Display title: the terminal app's OSC 0/2 title, else the foreground
+  /// process name, else the working directory for shells, else the shell
+  /// name. Updates live as the session reports new state.
+  String get title => session.title.value;
 
   @override
   bool operator ==(Object other) => other is TerminalTab && other.id == id;
@@ -177,18 +185,21 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     );
   }
 
-  TerminalTab _spawnTab({String? title}) {
+  TerminalTab _spawnTab() {
     final session = ref.read(localShellSessionFactoryProvider)();
-    return TerminalTab(
-      id: _uuid.v4(),
-      session: session,
-      title: title ?? 'shell',
-    );
+    final tab = TerminalTab(id: _uuid.v4(), session: session);
+    session.title.addListener(_onSessionTitleChanged);
+    return tab;
+  }
+
+  /// A tab's display title changed; rebuild so the tab strip repaints.
+  void _onSessionTitleChanged() {
+    state = _rebuild(tabs: [...state.tabs]);
   }
 
   /// Opens a new terminal tab in the focused pane.
-  void openTerminal({String? title}) {
-    final tab = _spawnTab(title: title);
+  void openTerminal() {
+    final tab = _spawnTab();
     final focusId = state.focusedPaneId;
     if (focusId == null) {
       _openFirstPane(tab);

@@ -1,0 +1,46 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:maidterm_app/shell/local_shell_session.dart';
+
+void main() {
+  /// Feeds bytes into the engine exactly as pty output would arrive, then
+  /// asserts the session's live display title.
+  LocalShellSession session() => LocalShellSession(autoStart: false);
+
+  test('OSC 2 window title becomes the tab title', () {
+    final s = session();
+    s.controller.write(utf8.encode('\x1b]2;vim notes\x07'));
+    expect(s.title.value, 'vim notes');
+    s.dispose();
+  });
+
+  test('OSC 0 sets both window and icon title; tab shows it', () {
+    final s = session();
+    s.controller.write(utf8.encode('\x1b]0;tmux: main\x07'));
+    expect(s.title.value, 'tmux: main');
+    s.dispose();
+  });
+
+  test('clearing the OSC title falls back to the working directory', () {
+    final s = session();
+    s.controller.write(utf8.encode('\x1b]2;vim notes\x07'));
+    expect(s.title.value, 'vim notes');
+    // vim restored its title on exit; the shell reports cwd via OSC 7.
+    s.controller.write(utf8.encode('\x1b]2;\x07'));
+    final home = Platform.environment['HOME']!;
+    s.controller.write(
+      utf8.encode('\x1b]7;file://$home/repo\x07'),
+    );
+    expect(s.title.value, '~/repo');
+    s.dispose();
+  });
+
+  test('shell-reported path (OSC 7) becomes the tab title', () {
+    final s = session();
+    s.controller.write(utf8.encode('\x1b]7;file:///tmp/x\x07'));
+    expect(s.title.value, '/tmp/x');
+    s.dispose();
+  });
+}

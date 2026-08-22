@@ -41,9 +41,6 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
 
   @override
   Widget build(BuildContext context) {
-    final focusedTab = ref.watch(
-      terminalWorkspaceProvider.select((state) => state.selectedTab),
-    );
     final settings = ref.watch(terminalSettingsProvider).value;
     final themeMode = settings?.themeMode ?? ThemeMode.dark;
     final seedColor = settings?.seedColor ?? const Color(0xFF0F766E);
@@ -75,9 +72,7 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
           child: ValueListenableBuilder<bool>(
             valueListenable: _settingsOpen,
             builder: (context, settingsOpen, _) => MaidTermWindowScaffold(
-              title: settingsOpen
-                  ? 'Settings'
-                  : (focusedTab?.title ?? 'MaidTerm'),
+              title: settingsOpen ? 'Settings' : 'MaidTerm',
               child: child!,
             ),
           ),

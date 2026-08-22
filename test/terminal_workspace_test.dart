@@ -3,10 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
 
-import 'package:terminal/shell/local_shell_session.dart';
-import 'package:terminal/workspace/session_layout.dart';
-import 'package:terminal/workspace/terminal_workspace.dart';
-import 'package:terminal/workspace/terminal_workspace_page.dart';
+import 'package:maidterm_app/shell/local_shell_session.dart';
+import 'package:maidterm_app/workspace/session_layout.dart';
+import 'package:maidterm_app/workspace/terminal_workspace.dart';
+import 'package:maidterm_app/workspace/terminal_workspace_page.dart';
 
 void main() {
   /// ProviderScope with sessions that never spawn a pty (plugin frameworks
