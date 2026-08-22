@@ -1,0 +1,65 @@
+name: terminal
+description: MaidTerm - a local-first desktop terminal for macOS, Windows and Linux.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_pty:
+    path: packages/flutter_pty
+  island_ui_foundation:
+    git:
+      url: https://src.solsynth.dev/SoSYS/Solian.git
+      path: packages/island_ui_foundation
+      ref: a936275e6e0e43de3eddbc0ed812308742e2b017
+  material_ui: ^1.0.1
+  flutter_localizations:
+    sdk: flutter
+  maidterm:
+    path: packages/maidterm
+  window_manager:
+    git:
+      url: https://github.com/boyan01/window_manager.git
+      path: packages/window_manager
+      ref: 6fae92d21b4c80ce1b8f71c1190d7970cf722bd4
+  hooks_riverpod: ^3.4.2
+  shared_preferences: ^2.5.5
+  uuid: ^4.6.0
+  collection: ^1.19.1
+  material_symbols_icons: ^4.2960.0
+  system_fonts: ^1.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: IBM Plex Sans
+      fonts:
+        - asset: assets/fonts/sans/IBMPlexSans-VariableFont_wdth,wght.ttf
+        - asset: assets/fonts/sans/IBMPlexSans-Italic-VariableFont_wdth,wght.ttf
+          style: italic
+    - family: IBM Plex Mono
+      fonts:
+        - asset: assets/fonts/mono/IBMPlexMono-Thin.ttf
+          weight: 100
+        - asset: assets/fonts/mono/IBMPlexMono-ExtraLight.ttf
+          weight: 200
+        - asset: assets/fonts/mono/IBMPlexMono-Light.ttf
+          weight: 300
+        - asset: assets/fonts/mono/IBMPlexMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/mono/IBMPlexMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/mono/IBMPlexMono-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/mono/IBMPlexMono-Bold.ttf
+          weight: 700
