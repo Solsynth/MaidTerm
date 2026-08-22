@@ -12,6 +12,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_pty:
     path: packages/flutter_pty
+  flutter_local_notifications: ^22.3.0
   island_ui_foundation:
     git:
       url: https://src.solsynth.dev/SoSYS/Solian.git

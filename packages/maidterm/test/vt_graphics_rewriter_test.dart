@@ -62,7 +62,10 @@ void main() {
       expect(result, startsWith('\x1b_Ga=t,f=32,t=d,i=1073741824,s=1,v=12;'));
       expect(result, endsWith('\x1b\\\x1b_Ga=p,i=1073741824\x1b\\'));
       // The RGBA payload is 1*12*4 = 48 bytes.
-      final b64 = result.substring(result.indexOf(';') + 1, result.indexOf('\x1b\\'));
+      final b64 = result.substring(
+        result.indexOf(';') + 1,
+        result.indexOf('\x1b\\'),
+      );
       expect(base64.decode(b64).length, 48);
     });
 
@@ -95,21 +98,83 @@ void main() {
       final part1 = out(r, '\x1b_Ga=T,f=100,s=1,v=1,t=d;QUFB');
       final part2 = out(r, 'QQ==\x1b\\');
       expect(part1, isEmpty); // held until the terminator arrives
-      expect(asString(part2), '\x1b_Gi=1073741824,a=T,f=100,s=1,v=1,t=d;QUFBQQ==\x1b\\');
+      expect(
+        asString(part2),
+        '\x1b_Gi=1073741824,a=T,f=100,s=1,v=1,t=d;QUFBQQ==\x1b\\',
+      );
     });
 
-    test('aborted string (ESC not followed by backslash) is passed through', () {
-      final r = rewriter();
-      final result = asString(out(r, '\x1b_Ga=T;QUFB\x1b[1mX'));
-      // The unterminated APC bytes plus the fresh CSI sequence.
-      expect(result, '\x1b_Ga=T;QUFB\x1b[1mX');
-    });
+    test(
+      'aborted string (ESC not followed by backslash) is passed through',
+      () {
+        final r = rewriter();
+        final result = asString(out(r, '\x1b_Ga=T;QUFB\x1b[1mX'));
+        // The unterminated APC bytes plus the fresh CSI sequence.
+        expect(result, '\x1b_Ga=T;QUFB\x1b[1mX');
+      },
+    );
 
     test('oversized strings degrade to passthrough', () {
       final r = rewriter();
       final big = 'A' * (VtGraphicsRewriter.maxBufferBytes + 10);
       final result = asString(out(r, '\x1b_Ga=t;$big\x1b\\'));
       expect(result, '\x1b_Ga=t;$big\x1b\\');
+    });
+    test('reports OSC 9 notifications and preserves the sequence', () {
+      final r = rewriter();
+      String? title;
+      String? body;
+      r.onNotification = (nextTitle, nextBody) {
+        title = nextTitle;
+        body = nextBody;
+      };
+      const sequence = '\x1b]9;Build finished\x07';
+      expect(asString(out(r, sequence)), sequence);
+      expect(title, isEmpty);
+      expect(body, 'Build finished');
+    });
+
+    test('reports OSC 777 notify title and body', () {
+      final r = rewriter();
+      String? title;
+      String? body;
+      r.onNotification = (nextTitle, nextBody) {
+        title = nextTitle;
+        body = nextBody;
+      };
+      const sequence = '\x1b]777;notify;MaidTerm;Command finished\x07';
+      expect(asString(out(r, sequence)), sequence);
+      expect(title, 'MaidTerm');
+      expect(body, 'Command finished');
+    });
+
+    test('accepts OSC notifications terminated by ST', () {
+      final r = rewriter();
+      String? body;
+      r.onNotification = (_, nextBody) => body = nextBody;
+      const sequence = '\x1b]9;Done\x1b\\';
+      expect(asString(out(r, sequence)), sequence);
+      expect(body, 'Done');
+    });
+
+    test('buffers notifications split across feed calls', () {
+      final r = rewriter();
+      String? body;
+      r.onNotification = (_, nextBody) => body = nextBody;
+      expect(out(r, '\x1b]9;Done'), isEmpty);
+      expect(asString(out(r, '\x07')), '\x1b]9;Done\x07');
+      expect(body, 'Done');
+    });
+
+    test('passes unrelated OSC commands without notifying', () {
+      final r = rewriter();
+      var called = false;
+      r.onNotification = (title, body) {
+        called = true;
+      };
+      const sequence = '\x1b]2;Window title\x07';
+      expect(asString(out(r, sequence)), sequence);
+      expect(called, isFalse);
     });
   });
 }

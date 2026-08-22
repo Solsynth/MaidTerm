@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'sixel_decoder.dart';
+import 'package:maidterm/src/widgets/sixel_decoder.dart';
 
 /// Rewrites the terminal input stream to close two graphics-protocol gaps
 /// in the libghostty core:
@@ -25,6 +25,12 @@ final class VtGraphicsRewriter {
   /// Supplies the next image id for injected Kitty transmits. Ids must
   /// stay out of the range the core auto-assigns (0x7FFFFFFF upward).
   final int Function() nextImageId;
+
+  /// Receives OSC 9/777 desktop notification requests.
+  void Function(String title, String body)? onNotification;
+
+  /// Maximum notification payload buffered before passthrough.
+  static const int maxNotificationBytes = 8192;
 
   /// Maximum bytes buffered for one control string. Beyond this the
   /// remainder of the string is forwarded verbatim.
@@ -68,9 +74,68 @@ final class VtGraphicsRewriter {
           case 0x50: // ESC P — DCS
             _state = _State.string;
             _stringIsApc = false;
+          case 0x5d: // ESC ] — OSC
+            _state = _State.osc;
           default: // Plain ESC sequence (or lone ESC \).
             _flushVerbatim();
             _state = _State.plain;
+        }
+
+      case _State.osc:
+        if (b == 0x07) {
+          _buf.add([b]);
+          _processOscComplete();
+          _state = _State.plain;
+        } else if (b == 0x1b) {
+          _buf.add([b]);
+          _state = _State.oscEsc;
+        } else {
+          _buf.add([b]);
+          if (_buf.length > maxNotificationBytes) {
+            _out.add(_buf.takeBytes());
+            _state = _State.oscPassthrough;
+          }
+        }
+
+      case _State.oscEsc:
+        if (b == 0x5c) {
+          _buf.add([b]);
+          _processOscComplete();
+          _state = _State.plain;
+        } else {
+          final collected = _buf.takeBytes();
+          _out.add(collected.sublist(0, collected.length - 1));
+          _buf.clear();
+          _buf.add([0x1b, b]);
+          switch (b) {
+            case 0x5f:
+              _state = _State.string;
+              _stringIsApc = true;
+            case 0x50:
+              _state = _State.string;
+              _stringIsApc = false;
+            case 0x5d:
+              _state = _State.osc;
+            default:
+              _flushVerbatim();
+              _state = _State.plain;
+          }
+        }
+
+      case _State.oscPassthrough:
+        _out.addByte(b);
+        if (b == 0x07) {
+          _state = _State.plain;
+        } else if (b == 0x1b) {
+          _state = _State.oscPassthroughEsc;
+        }
+
+      case _State.oscPassthroughEsc:
+        _out.addByte(b);
+        if (b == 0x5c) {
+          _state = _State.plain;
+        } else {
+          _state = _State.oscPassthrough;
         }
 
       case _State.string:
@@ -141,10 +206,54 @@ final class VtGraphicsRewriter {
 
   void _processComplete() {
     final bytes = _buf.takeBytes();
-    final rewritten = _stringIsApc
-        ? _rewriteKitty(bytes)
-        : _rewriteDcs(bytes);
+    final rewritten = _stringIsApc ? _rewriteKitty(bytes) : _rewriteDcs(bytes);
     _out.add(rewritten ?? bytes);
+  }
+
+  void _processOscComplete() {
+    final bytes = _buf.takeBytes();
+    final terminatorLength = bytes.last == 0x07 ? 1 : 2;
+    final payloadEnd = bytes.length - terminatorLength;
+    if (payloadEnd <= 2) {
+      _out.add(bytes);
+      return;
+    }
+
+    final payload = utf8.decode(
+      bytes.sublist(2, payloadEnd),
+      allowMalformed: true,
+    );
+    final separator = payload.indexOf(';');
+    if (separator < 0) {
+      _out.add(bytes);
+      return;
+    }
+
+    final command = payload.substring(0, separator);
+    final args = payload.substring(separator + 1);
+    String? title;
+    String? body;
+
+    if (command == '9') {
+      if (args.isNotEmpty) body = args;
+    } else if (command == '777') {
+      final parts = args.split(';');
+      if (parts.isNotEmpty && parts.first == 'notify') {
+        final notification = parts.skip(1).toList();
+        if (notification.length >= 2) {
+          title = notification.first;
+          body = notification.skip(1).join(';');
+        } else if (notification.length == 1) {
+          body = notification.first;
+        }
+      }
+    }
+
+    final notificationBody = body;
+    if (notificationBody != null && notificationBody.isNotEmpty) {
+      onNotification?.call(title ?? '', notificationBody);
+    }
+    _out.add(bytes);
   }
 
   /// Returns the rewritten APC bytes for a complete `ESC _ ... ESC \`
@@ -176,6 +285,7 @@ final class VtGraphicsRewriter {
     while (i < end) {
       final key = bytes[i];
       if (key == 0x3b) break; // ';' — data starts; controls done
+
       if (key == 0x2c) {
         // ',' — separator; next key starts at i+1
         i += 1;
@@ -183,7 +293,10 @@ final class VtGraphicsRewriter {
       }
       // Parse key=value.
       var j = i + 1;
-      while (j < end && bytes[j] != 0x3d && bytes[j] != 0x2c && bytes[j] != 0x3b) {
+      while (j < end &&
+          bytes[j] != 0x3d &&
+          bytes[j] != 0x2c &&
+          bytes[j] != 0x3b) {
         j += 1;
       }
       if (j < end && bytes[j] == 0x3d) {
@@ -222,8 +335,9 @@ final class VtGraphicsRewriter {
 
     final id = nextImageId();
     final rgbaB64 = base64Encode(image.rgba);
-    final transmit =
-        utf8.encode('\x1b_Ga=t,f=32,t=d,i=$id,s=${image.width},v=${image.height};$rgbaB64\x1b\\');
+    final transmit = utf8.encode(
+      '\x1b_Ga=t,f=32,t=d,i=$id,s=${image.width},v=${image.height};$rgbaB64\x1b\\',
+    );
     final display = utf8.encode('\x1b_Ga=p,i=$id\x1b\\');
     final result = Uint8List(transmit.length + display.length);
     result.setRange(0, transmit.length, transmit);
@@ -239,10 +353,8 @@ final class VtGraphicsRewriter {
     while (i < end) {
       final c = bytes[i];
       if (c == 0x71) return i; // 'q'
-      final validParam = (c >= 0x30 && c <= 0x39) ||
-          c == 0x3b ||
-          c == 0x22 ||
-          c == 0x3f;
+      final validParam =
+          (c >= 0x30 && c <= 0x39) || c == 0x3b || c == 0x22 || c == 0x3f;
       if (!validParam) return -1;
       i += 1;
     }
@@ -250,4 +362,15 @@ final class VtGraphicsRewriter {
   }
 }
 
-enum _State { plain, esc, string, stringEsc, passthrough, passthroughEsc }
+enum _State {
+  plain,
+  esc,
+  osc,
+  oscEsc,
+  oscPassthrough,
+  oscPassthroughEsc,
+  string,
+  stringEsc,
+  passthrough,
+  passthroughEsc,
+}

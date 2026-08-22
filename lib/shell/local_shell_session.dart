@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_pty/flutter_pty.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
+import 'package:window_manager/window_manager.dart';
 
-import 'process_title_monitor.dart';
+import 'package:maidterm_app/notifications/app_notifications.dart';
+import 'package:maidterm_app/shell/process_title_monitor.dart';
 
 /// Runs a local login shell inside a pty and bridges it to a
 /// [maidterm.TerminalController].
@@ -38,6 +41,8 @@ class LocalShellSession {
       ),
     );
     _displayTitle = ValueNotifier<String>(_fallbackTitle);
+    _controller.onBell = _handleBell;
+    _controller.onNotification = _handleNotification;
     _controller.onOutput = _writeToPty;
     _controller.onResize = _resizePty;
     _controller.onTitleChanged = _onTitleChanged;
@@ -50,10 +55,7 @@ class LocalShellSession {
       workingDirectory: _spawnCwd,
       // flutter_pty only forwards a fixed env set; COLORTERM must be opt-in
       // or truecolor clients (fastfetch, vim, bat) silently downgrade.
-      environment: const {
-        'TERM': 'xterm-256color',
-        'COLORTERM': 'truecolor',
-      },
+      environment: const {'TERM': 'xterm-256color', 'COLORTERM': 'truecolor'},
     );
     _ptyPid = pty.pid;
     _subscriptions.add(pty.output.listen(_controller.write));
@@ -101,6 +103,18 @@ class LocalShellSession {
       // The pty may already be closed while the shell is exiting; nothing
       // useful can be done with the terminal's output at that point.
     }
+  }
+
+  void _handleBell() {
+    unawaited(SystemSound.play(SystemSoundType.alert));
+  }
+
+  Future<void> _handleNotification(String title, String body) async {
+    if (await windowManager.isFocused()) return;
+    await AppNotifications.show(
+      title: title.trim().isEmpty ? 'MaidTerm' : title.trim(),
+      body: body,
+    );
   }
 
   void _resizePty(int cols, int rows, int pixelWidth, int pixelHeight) {

@@ -8,13 +8,13 @@ import 'package:libghostty/libghostty.dart' as vt;
 import 'package:libghostty/libghostty.dart' hide KeyEvent;
 import 'package:meta/meta.dart';
 
-import '../foundation.dart';
-import '../rendering/kitty_png_decoder.dart';
-import 'selection_gesture_driver.dart';
-import 'terminal_controller.dart';
-import 'terminal_input_client.dart';
-import 'terminal_view_binding.dart';
-import 'vt_graphics_rewriter.dart';
+import 'package:maidterm/src/foundation.dart';
+import 'package:maidterm/src/rendering/kitty_png_decoder.dart';
+import 'package:maidterm/src/widgets/selection_gesture_driver.dart';
+import 'package:maidterm/src/widgets/terminal_controller.dart';
+import 'package:maidterm/src/widgets/terminal_input_client.dart';
+import 'package:maidterm/src/widgets/terminal_view_binding.dart';
+import 'package:maidterm/src/widgets/vt_graphics_rewriter.dart';
 
 @internal
 class TerminalControllerImpl extends TerminalController
@@ -82,6 +82,9 @@ class TerminalControllerImpl extends TerminalController
       super.base() {
     _selectionGesture = SelectionGestureDriver(terminal);
     installDefaultKittyPngDecoder();
+    _vtGraphics.onNotification = (title, body) {
+      onNotification?.call(title, body);
+    };
     _textInput
       ..onTextCommitted = _handleTextCommitted
       ..onDelete = _handleDelete
@@ -651,7 +654,8 @@ class TerminalControllerImpl extends TerminalController
   static const _injectedIdSpan = 0x3FFFFFFF;
   static var _injectedId = 0;
 
-  static int _nextInjectedImageId() => _injectedIdBase + (_injectedId++ % _injectedIdSpan);
+  static int _nextInjectedImageId() =>
+      _injectedIdBase + (_injectedId++ % _injectedIdSpan);
 
   void _applyModes() {
     for (final entry in _config.modes.entries) {

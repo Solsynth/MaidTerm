@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart' hide Key;
 import 'package:libghostty/libghostty.dart';
 
-import '../foundation.dart';
-import 'terminal_controller_impl.dart';
+import 'package:maidterm/src/foundation.dart';
+import 'package:maidterm/src/widgets/terminal_controller_impl.dart';
 
 /// Manages a terminal instance and bridges it with [TerminalView].
 ///
@@ -34,6 +34,13 @@ abstract class TerminalController extends ChangeNotifier
 
   /// Called when the terminal receives a BEL character (0x07).
   VoidCallback? onBell;
+
+  /// Called when the terminal receives a desktop notification request
+  /// (OSC 9 or OSC 777;notify).
+  ///
+  /// [title] is empty for OSC 9 notifications. The callback runs during
+  /// [write] and does not display anything by itself.
+  void Function(String title, String body)? onNotification;
 
   /// Called when the terminal title changes. Read [title] for the value.
   VoidCallback? onTitleChanged;
