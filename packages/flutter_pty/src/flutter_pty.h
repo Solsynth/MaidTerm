@@ -19,6 +19,10 @@ typedef struct PtyOptions
 
     int cols;
 
+    int pixel_width;
+
+    int pixel_height;
+
     char *executable;
 
     char **arguments;
@@ -43,7 +47,7 @@ FFI_PLUGIN_EXPORT void pty_write(PtyHandle *handle, char *buffer, int length);
 
 FFI_PLUGIN_EXPORT void pty_ack_read(PtyHandle *handle);
 
-FFI_PLUGIN_EXPORT int pty_resize(PtyHandle *handle, int rows, int cols);
+FFI_PLUGIN_EXPORT int pty_resize(PtyHandle *handle, int rows, int cols, int pixel_width, int pixel_height);
 
 FFI_PLUGIN_EXPORT int pty_getpid(PtyHandle *handle);
 

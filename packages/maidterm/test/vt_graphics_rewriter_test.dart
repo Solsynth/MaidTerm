@@ -49,6 +49,23 @@ void main() {
       expect(asString(out(r, seq)), seq);
     });
 
+    test('injects an id into the start chunk of a chunked transmit', () {
+      final r = rewriter();
+      final result = asString(
+        out(r, '\x1b_Gf=32,o=z,s=2,v=2,a=T,m=1;QUFBQQ==\x1b\\'),
+      );
+      expect(
+        result,
+        '\x1b_Gi=1073741824,f=32,o=z,s=2,v=2,a=T,m=1;QUFBQQ==\x1b\\',
+      );
+    });
+
+    test('leaves the end chunk (m=0) untouched', () {
+      final r = rewriter();
+      const seq = '\x1b_Gm=0;\x1b\\';
+      expect(asString(out(r, seq)), seq);
+    });
+
     test('leaves kitty queries untouched', () {
       final r = rewriter();
       const seq = '\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\';

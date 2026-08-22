@@ -139,7 +139,7 @@ class LocalShellSession {
   }
 
   void _resizePty(int cols, int rows, int pixelWidth, int pixelHeight) {
-    _pty?.resize(rows, cols);
+    _pty?.resize(rows, cols, pixelWidth: pixelWidth, pixelHeight: pixelHeight);
   }
 
   void _onControllerChanged() {

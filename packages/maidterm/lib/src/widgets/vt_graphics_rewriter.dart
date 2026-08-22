@@ -275,6 +275,11 @@ final class VtGraphicsRewriter {
 
   /// Whether a complete kitty APC is a transmit without an explicit image
   /// id or number (the case where the core suppresses its response).
+  ///
+  /// Continuation chunks — commands whose only control is `m=` — belong to
+  /// the transmission opened by their start chunk and never carry their own
+  /// id, so injecting one would fork the transmission. Start chunks are
+  /// recognized by carrying any other key alongside `m=`.
   bool _kittyTransmitNeedsId(Uint8List bytes) {
     // bytes = ESC _ G controls... ESC \ ; the data part (after ';') is
     // irrelevant here.
@@ -282,6 +287,8 @@ final class VtGraphicsRewriter {
     final end = bytes.length - 2; // exclude trailing ESC \
     var hasAction = false;
     var actionIsTransmit = false;
+    var hasContinuation = false;
+    var hasOtherKey = false;
     while (i < end) {
       final key = bytes[i];
       if (key == 0x3b) break; // ';' — data starts; controls done
@@ -309,17 +316,21 @@ final class VtGraphicsRewriter {
           case 0x61: // a
             hasAction = true;
             actionIsTransmit = value == 't' || value == 'T';
+            hasOtherKey = true;
           case 0x69: // i — explicit image id
           case 0x49: // I — image number
             return false;
-          case 0x6d: // m — continuation chunk
-            if (value != '0') return false;
+          case 0x6d: // m — continuation flag
+            hasContinuation = true;
+          default:
+            hasOtherKey = true;
         }
         i = k;
         continue;
       }
       i = j;
     }
+    if (hasContinuation && !hasOtherKey) return false;
     return !hasAction || actionIsTransmit;
   }
 

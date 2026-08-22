@@ -52,6 +52,8 @@ class Pty {
     Map<String, String>? environment,
     int rows = 25,
     int columns = 80,
+    int pixelWidth = 0,
+    int pixelHeight = 0,
     bool ackRead = false,
   }) {
     _ensureInitialized();
@@ -102,6 +104,8 @@ class Pty {
     final options = calloc<PtyOptions>();
     options.ref.rows = rows;
     options.ref.cols = columns;
+    options.ref.pixel_width = pixelWidth;
+    options.ref.pixel_height = pixelHeight;
     options.ref.executable = executable.toNativeUtf8().cast();
     options.ref.arguments = argv.cast();
     options.ref.environment = envp.cast();
@@ -178,8 +182,11 @@ class Pty {
   }
 
   /// Resize the pseudo-terminal.
-  void resize(int rows, int cols) {
-    _bindings.pty_resize(_handle, rows, cols);
+  ///
+  /// [pixelWidth]/[pixelHeight] populate `TIOCGWINSZ`'s `ws_xpixel`/
+  /// `ws_ypixel` so graphics-protocol clients can size images in pixels.
+  void resize(int rows, int cols, {int pixelWidth = 0, int pixelHeight = 0}) {
+    _bindings.pty_resize(_handle, rows, cols, pixelWidth, pixelHeight);
   }
 
   /// Kill the process running in the pseudo-terminal.

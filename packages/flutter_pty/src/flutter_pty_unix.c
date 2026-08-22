@@ -5,6 +5,8 @@
 
 #include <pthread.h>
 #include <unistd.h>
+#include <string.h>
+
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
@@ -157,8 +159,12 @@ FFI_PLUGIN_EXPORT PtyHandle *pty_create(PtyOptions *options)
 {
     struct winsize ws;
 
+    memset(&ws, 0, sizeof(ws));
+
     ws.ws_row = options->rows;
     ws.ws_col = options->cols;
+    ws.ws_xpixel = options->pixel_width;
+    ws.ws_ypixel = options->pixel_height;
 
     int ptm;
 
@@ -216,12 +222,16 @@ FFI_PLUGIN_EXPORT void pty_ack_read(PtyHandle *handle)
     }
 }
 
-FFI_PLUGIN_EXPORT int pty_resize(PtyHandle *handle, int rows, int cols)
+FFI_PLUGIN_EXPORT int pty_resize(PtyHandle *handle, int rows, int cols, int pixel_width, int pixel_height)
 {
     struct winsize ws;
 
+    memset(&ws, 0, sizeof(ws));
+
     ws.ws_row = rows;
     ws.ws_col = cols;
+    ws.ws_xpixel = pixel_width;
+    ws.ws_ypixel = pixel_height;
 
     return ioctl(handle->ptm, TIOCSWINSZ, &ws);
 }
