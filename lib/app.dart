@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart'
     as material_ui
     show GlobalMaterialLocalizations;
 
+import 'settings/background_image.dart';
 import 'settings/settings_page.dart';
 import 'settings/terminal_settings.dart';
 import 'workspace/terminal_workspace.dart';
@@ -64,16 +65,16 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
       builder: (context, child) => MaterialUiCompatibilityBridge(
         child: CallbackShortcuts(
           bindings: {
-            const SingleActivator(LogicalKeyboardKey.comma, meta: true):
-                () => _openSettings(context),
-            const SingleActivator(LogicalKeyboardKey.keyN, meta: true):
-                () => ref.read(terminalWorkspaceProvider.notifier).openTerminal(),
+            const SingleActivator(LogicalKeyboardKey.comma, meta: true): () =>
+                _openSettings(context),
+            const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
+                ref.read(terminalWorkspaceProvider.notifier).openTerminal(),
           },
           child: ValueListenableBuilder<bool>(
             valueListenable: _settingsOpen,
             builder: (context, settingsOpen, _) => MaidTermWindowScaffold(
               title: settingsOpen ? 'Settings' : 'MaidTerm',
-              child: child!,
+              child: MaidTermAppBackground(child: child!),
             ),
           ),
         ),

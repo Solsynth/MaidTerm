@@ -2,7 +2,8 @@
 
 MaidTerm is a local-first desktop terminal emulator for macOS, Windows, and
 Linux, built on the [MaidTerm engine](packages/maidterm) — a Flutter terminal
-engine that wraps the Ghostty terminal emulator core through Dart FFI.
+engine that wraps the Ghostty terminal emulator core through Dart FFI and
+powers the MaidKit.
 
 ## Features
 
@@ -35,7 +36,7 @@ handling, graphics protocols, input encoding, and painting — lives in the
 
 ## Tech stack
 
-- [Flutter](https://flutter.dev) / Dart (SDK ^3.13.0)
+- [flutter](https://flutter.dev) / Dart (SDK ^3.13.0)
 - [maidterm](packages/maidterm) — terminal engine based on
   [libghostty](https://github.com/elias8/libghostty) (Dart FFI bindings to
   Ghostty's Zig-based `libghostty-vt` emulator core)

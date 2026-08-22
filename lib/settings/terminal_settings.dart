@@ -102,21 +102,21 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
         _ => maidterm.CursorShape.block,
       },
       shellPath: prefs.getString(_shellPathKey),
-      fontFamily: prefs.getString(_fontFamilyKey) ?? TerminalFonts.defaultFamily,
-      lightTheme: _decodeTheme(prefs.getString(_lightThemeKey)) ??
+      fontFamily:
+          prefs.getString(_fontFamilyKey) ?? TerminalFonts.defaultFamily,
+      lightTheme:
+          _decodeTheme(prefs.getString(_lightThemeKey)) ??
           TerminalColorSchemes.defaultLightScheme,
-      darkTheme: _decodeTheme(prefs.getString(_darkThemeKey)) ??
+      darkTheme:
+          _decodeTheme(prefs.getString(_darkThemeKey)) ??
           TerminalColorSchemes.defaultScheme,
-      transparentBackground:
-          prefs.getBool(_transparentKey) ?? false,
+      transparentBackground: prefs.getBool(_transparentKey) ?? false,
       themeMode: switch (prefs.getString(_themeModeKey)) {
         'system' => ThemeMode.system,
         'light' => ThemeMode.light,
         _ => ThemeMode.dark,
       },
-      seedColor: Color(
-        prefs.getInt(_seedColorKey) ?? 0xFF0F766E,
-      ),
+      seedColor: Color(prefs.getInt(_seedColorKey) ?? 0xFF0F766E),
     );
   }
 

@@ -55,7 +55,11 @@ class LocalShellSession {
       workingDirectory: _spawnCwd,
       // flutter_pty only forwards a fixed env set; COLORTERM must be opt-in
       // or truecolor clients (fastfetch, vim, bat) silently downgrade.
-      environment: const {'TERM': 'xterm-256color', 'COLORTERM': 'truecolor'},
+      environment: const {
+        'TERM': 'xterm-256color',
+        'COLORTERM': 'truecolor',
+        'TERM_PROGRAM': 'MaidTerm',
+      },
     );
     _ptyPid = pty.pid;
     _subscriptions.add(pty.output.listen(_controller.write));

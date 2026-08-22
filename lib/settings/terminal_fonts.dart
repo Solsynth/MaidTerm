@@ -120,9 +120,12 @@ final terminalFontFamilyProvider =
 class TerminalFontFamilyNotifier extends Notifier<String> {
   @override
   String build() {
+    // Watch only the family so unrelated settings changes do not reload it.
+    final persistedFamily = ref.watch(
+      terminalSettingsProvider.select((settings) => settings.value?.fontFamily),
+    );
     final value = TerminalFonts.sanitize(
-      ref.read(terminalSettingsProvider).value?.fontFamily ??
-          TerminalFonts.defaultFamily,
+      persistedFamily ?? TerminalFonts.defaultFamily,
     );
     unawaited(_loadFont(value));
     return value;
@@ -159,7 +162,10 @@ final availableTerminalFontsProvider = FutureProvider<List<TerminalFontOption>>(
     }
     final persisted = ref.read(terminalFontFamilyProvider);
     if (!options.any((option) => option.family == persisted)) {
-      options.insert(0, TerminalFontOption(label: persisted, family: persisted));
+      options.insert(
+        0,
+        TerminalFontOption(label: persisted, family: persisted),
+      );
     }
     return List.unmodifiable(options);
   },

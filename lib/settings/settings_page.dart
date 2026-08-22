@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -6,6 +9,7 @@ import 'package:maidterm/maidterm.dart' as maidterm;
 
 import 'terminal_color_scheme.dart';
 import 'terminal_fonts.dart';
+import 'background_image.dart';
 import 'terminal_settings.dart';
 import 'terminal_theme_editor.dart';
 
@@ -18,111 +22,155 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(terminalSettingsProvider);
     final data = settings.value;
+    final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const _SectionHeader('Appearance'),
-          if (data == null)
-            const Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else ...[
-            _ThemeModePicker(settings: data),
-            const SizedBox(height: 16),
-            _SeedColorPicker(settings: data),
-            const Divider(height: 40),
-            const _SectionHeader('Terminal'),
-            const SizedBox(height: 16),
-            const _TerminalFontDropdown(),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
+      appBar: AppBar(
+        title: const Text('Settings'),
+        elevation: 0,
+        backgroundColor: colors.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 860),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
               children: [
-                Text(
-                  'Monospace only',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(width: 4),
-                Switch(
-                  value: ref.watch(monospaceTerminalFontsOnlyProvider),
-                  onChanged: (value) => ref
-                      .read(monospaceTerminalFontsOnlyProvider.notifier)
-                      .setEnabled(value),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const _FontSizeField(),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Cursor blink'),
-              value: data.cursorBlink,
-              onChanged: (v) =>
-                  ref.read(terminalSettingsProvider.notifier).setCursorBlink(v),
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Cursor style'),
-              trailing: DropdownButton<maidterm.CursorShape>(
-                value: data.cursorStyle,
-                items: const [
-                  DropdownMenuItem(
-                    value: maidterm.CursorShape.block,
-                    child: Text('Block'),
+                const _SettingsIntro(),
+                if (data == null)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else ...[
+                  _SettingsSection(
+                    title: 'Appearance',
+                    description: 'Theme and accent used across the workspace.',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ThemeModePicker(settings: data),
+                        const SizedBox(height: 20),
+                        _SeedColorPicker(settings: data),
+                      ],
+                    ),
                   ),
-                  DropdownMenuItem(
-                    value: maidterm.CursorShape.bar,
-                    child: Text('Bar'),
+                  _SettingsSection(
+                    title: 'Background image',
+                    description: 'Show a subtle image behind transparent terminal surfaces.',
+                    child: const _BackgroundImageSettings(),
                   ),
-                  DropdownMenuItem(
-                    value: maidterm.CursorShape.underline,
-                    child: Text('Underline'),
+                  _SettingsSection(
+                    title: 'Typography',
+                    description: 'Choose the face and scale of terminal text.',
+                    child: const _TerminalFontDropdown(),
+                  ),
+                  _SettingsSection(
+                    title: 'Behavior',
+                    description: 'Small details that shape the terminal feel.',
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Cursor blink'),
+                          subtitle: const Text(
+                            'Show movement when the terminal is ready',
+                          ),
+                          value: data.cursorBlink,
+                          onChanged: (v) => ref
+                              .read(terminalSettingsProvider.notifier)
+                              .setCursorBlink(v),
+                        ),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Cursor style'),
+                          subtitle: const Text(
+                            'The shape used for the active cell',
+                          ),
+                          trailing: DropdownButton<maidterm.CursorShape>(
+                            value: data.cursorStyle,
+                            items: const [
+                              DropdownMenuItem(
+                                value: maidterm.CursorShape.block,
+                                child: Text('Block'),
+                              ),
+                              DropdownMenuItem(
+                                value: maidterm.CursorShape.bar,
+                                child: Text('Bar'),
+                              ),
+                              DropdownMenuItem(
+                                value: maidterm.CursorShape.underline,
+                                child: Text('Underline'),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              if (v != null) {
+                                ref
+                                    .read(terminalSettingsProvider.notifier)
+                                    .setCursorStyle(v);
+                              }
+                            },
+                          ),
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Transparent background'),
+                          subtitle: const Text(
+                            'Show the workspace background through the terminal',
+                          ),
+                          value: data.transparentBackground,
+                          onChanged: (v) => ref
+                              .read(terminalSettingsProvider.notifier)
+                              .setTransparentBackground(v),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _SettingsSection(
+                    title: 'Terminal themes',
+                    description:
+                        'Tune the palettes used in light and dark mode.',
+                    child: Column(
+                      children: [
+                        _TerminalThemeTile(
+                          mode: Brightness.light,
+                          theme: data.lightTheme,
+                          onEdit: () =>
+                              _editTheme(context, ref, Brightness.light),
+                        ),
+                        _TerminalThemeTile(
+                          mode: Brightness.dark,
+                          theme: data.darkTheme,
+                          onEdit: () =>
+                              _editTheme(context, ref, Brightness.dark),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _SettingsSection(
+                    title: 'Shell',
+                    description: 'Use a specific shell, or leave this blank for the system default.',
+                    child: TextField(
+                      controller: TextEditingController(
+                        text: data.shellPath ?? '',
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Shell path',
+                        hintText: 'Default shell',
+                        border: OutlineInputBorder(),
+                      ),
+                      onSubmitted: (v) => ref
+                          .read(terminalSettingsProvider.notifier)
+                          .setShellPath(v.trim()),
+                    ),
                   ),
                 ],
-                onChanged: (v) {
-                  if (v != null) {
-                    ref
-                        .read(terminalSettingsProvider.notifier)
-                        .setCursorStyle(v);
-                  }
-                },
-              ),
+              ],
             ),
-            _TerminalThemeTile(
-              mode: Brightness.light,
-              theme: data.lightTheme,
-              onEdit: () => _editTheme(context, ref, Brightness.light),
-            ),
-            _TerminalThemeTile(
-              mode: Brightness.dark,
-              theme: data.darkTheme,
-              onEdit: () => _editTheme(context, ref, Brightness.dark),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Transparent background'),
-              subtitle: const Text('Lets the window surface show through'),
-              value: data.transparentBackground,
-              onChanged: (v) => ref
-                  .read(terminalSettingsProvider.notifier)
-                  .setTransparentBackground(v),
-            ),
-            TextField(
-              controller: TextEditingController(text: data.shellPath ?? ''),
-              decoration: const InputDecoration(
-                labelText: 'Shell (empty = default)',
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (v) => ref
-                  .read(terminalSettingsProvider.notifier)
-                  .setShellPath(v.trim()),
-            ),
-          ],
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -150,17 +198,184 @@ class SettingsPage extends ConsumerWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-
-  final String title;
+class _SettingsIntro extends StatelessWidget {
+  const _SettingsIntro();
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-        color: Theme.of(context).colorScheme.primary,
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'TERMINAL PREFERENCES',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontFamily: 'IBM Plex Mono',
+              letterSpacing: 1.4,
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BackgroundImageSettings extends ConsumerWidget {
+  const _BackgroundImageSettings();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final image = ref.watch(maidTermBackgroundImageProvider).asData?.value;
+    final enabled =
+        ref.watch(maidTermBackgroundImageEnabledProvider).asData?.value ?? true;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (image != null) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: double.infinity,
+              height: 148,
+              child: Image.file(
+                image,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => ColoredBox(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: const Center(child: Icon(Symbols.broken_image)),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            image.path.split(Platform.pathSeparator).last,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'IBM Plex Mono',
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Show background image'),
+            value: enabled,
+            onChanged: (value) => setMaidTermBackgroundImageEnabled(ref, value),
+          ),
+        ] else
+          Text(
+            'No image selected.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => _chooseImage(context, ref),
+              icon: const Icon(Symbols.image),
+              label: const Text('Choose image'),
+            ),
+            if (image != null)
+              TextButton.icon(
+                onPressed: () => clearMaidTermBackgroundImage(ref),
+                icon: const Icon(Symbols.delete_outline),
+                label: const Text('Clear image'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _chooseImage(BuildContext context, WidgetRef ref) async {
+    // MaidTerm is intentionally not sandboxed. file_picker's entitlement
+    // guard must be bypassed for this desktop configuration.
+    await FilePicker.skipEntitlementsChecks();
+    final selection = await FilePicker.pickFiles(
+      dialogTitle: 'Choose background image',
+      type: FileType.image,
+    );
+    final path = selection == null || selection.files.isEmpty
+        ? null
+        : selection.files.first.path;
+    if (path == null) return;
+
+    try {
+      await saveMaidTermBackgroundImage(ref, File(path));
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save background image: $error')),
+      );
+    }
+  }
+}
+
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({
+    required this.title,
+    required this.description,
+    required this.child,
+  });
+
+  final String title;
+  final String description;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 3,
+                height: 20,
+                margin: const EdgeInsets.only(top: 2, right: 10),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
       ),
     );
   }
@@ -173,40 +388,16 @@ class _ThemeModePicker extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Theme'),
-        const SizedBox(height: 4),
-        Text(
-          'Follows the system when set to System',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 12),
-        SegmentedButton<ThemeMode>(
-          segments: const [
-            ButtonSegment(
-              value: ThemeMode.system,
-              label: Text('System'),
-              icon: Icon(Icons.brightness_auto),
-            ),
-            ButtonSegment(
-              value: ThemeMode.light,
-              label: Text('Light'),
-              icon: Icon(Icons.light_mode),
-            ),
-            ButtonSegment(
-              value: ThemeMode.dark,
-              label: Text('Dark'),
-              icon: Icon(Icons.dark_mode),
-            ),
-          ],
-          selected: {settings.themeMode},
-          onSelectionChanged: (selection) => ref
-              .read(terminalSettingsProvider.notifier)
-              .setThemeMode(selection.first),
-        ),
+    return SegmentedButton<ThemeMode>(
+      segments: const [
+        ButtonSegment(value: ThemeMode.system, label: Text('System')),
+        ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+        ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
       ],
+      selected: {settings.themeMode},
+      onSelectionChanged: (selection) => ref
+          .read(terminalSettingsProvider.notifier)
+          .setThemeMode(selection.first),
     );
   }
 }
@@ -291,55 +482,71 @@ class _TerminalFontDropdown extends ConsumerWidget {
       }
     }
 
+    final familyField = DropdownButtonFormField<String>(
+      initialValue: current,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Font family',
+        border: OutlineInputBorder(),
+      ),
+      items: [
+        for (final option in filtered)
+          DropdownMenuItem(
+            value: option.family,
+            child: Text(
+              option.label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontFamily: option.family),
+            ),
+          ),
+      ],
+      onChanged: setFontFamily,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DropdownButtonFormField<String>(
-          initialValue: current,
-          isExpanded: true,
-          decoration: const InputDecoration(
-            labelText: 'Terminal font',
-            border: OutlineInputBorder(),
-          ),
-          items: [
-            for (final option in filtered)
-              DropdownMenuItem(
-                value: option.family,
-                child: Text(
-                  option.label,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontFamily: option.family),
-                ),
-              ),
-          ],
-          onChanged: setFontFamily,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final sizeField = SizedBox(
+              width: 132,
+              child: const _FontSizeField(),
+            );
+            if (constraints.maxWidth < 420) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [familyField, const SizedBox(height: 12), sizeField],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: familyField),
+                const SizedBox(width: 12),
+                sizeField,
+              ],
+            );
+          },
         ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Monospace only',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(width: 4),
-            Switch(
-              value: monoOnly,
-              onChanged: (value) => ref
-                  .read(monospaceTerminalFontsOnlyProvider.notifier)
-                  .setEnabled(value),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
         TextField(
           controller: TextEditingController(text: current),
           decoration: const InputDecoration(
-            labelText: 'Custom font family',
-            hintText: 'e.g. FiraCode Nerd Font',
+            labelText: 'Custom family',
+            hintText: 'e.g. Fira Code',
             border: OutlineInputBorder(),
           ),
           onSubmitted: setFontFamily,
+        ),
+        const SizedBox(height: 4),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Monospace only'),
+          subtitle: const Text('Keep the font list focused on terminal faces'),
+          value: monoOnly,
+          onChanged: (value) => ref
+              .read(monospaceTerminalFontsOnlyProvider.notifier)
+              .setEnabled(value),
         ),
       ],
     );
@@ -358,27 +565,21 @@ class _FontSizeField extends ConsumerWidget {
       ),
     );
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 120),
-        child: TextField(
-          key: ValueKey(size),
-          controller: TextEditingController(text: size.toStringAsFixed(0)),
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(
-            labelText: 'Font size (pt)',
-            border: OutlineInputBorder(),
-          ),
-          onSubmitted: (value) {
-            final parsed = double.tryParse(value);
-            if (parsed != null && parsed >= 6 && parsed <= 48) {
-              ref.read(terminalSettingsProvider.notifier).setFontSize(parsed);
-            }
-          },
-        ),
+    return TextField(
+      key: ValueKey(size),
+      controller: TextEditingController(text: size.toStringAsFixed(0)),
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      decoration: const InputDecoration(
+        labelText: 'Font size (pt)',
+        border: OutlineInputBorder(),
       ),
+      onSubmitted: (value) {
+        final parsed = double.tryParse(value);
+        if (parsed != null && parsed >= 6 && parsed <= 48) {
+          ref.read(terminalSettingsProvider.notifier).setFontSize(parsed);
+        }
+      },
     );
   }
 }

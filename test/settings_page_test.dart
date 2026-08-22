@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart'
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:maidterm_app/settings/settings_page.dart';
+import 'package:maidterm_app/settings/terminal_fonts.dart';
 import 'package:maidterm_app/settings/terminal_settings.dart';
 
 void main() {
@@ -15,6 +16,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
+      'terminal.fontFamily': 'Fira Code',
       'terminal.fontSize': 16.0,
       'terminal.cursorBlink': false,
       'terminal.cursorStyle': 'bar',
@@ -34,12 +36,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Background image'), findsOneWidget);
+    expect(find.text('Choose image'), findsOneWidget);
+    expect(find.text('No image selected.'), findsOneWidget);
 
     // Values loaded from prefs.
     final container = ProviderScope.containerOf(
       tester.element(find.byType(SettingsPage)),
     );
     expect(container.read(terminalSettingsProvider).value?.fontSize, 16.0);
+    expect(container.read(terminalFontFamilyProvider), 'Fira Code');
 
     // Toggle blink persists.
     await tester.scrollUntilVisible(

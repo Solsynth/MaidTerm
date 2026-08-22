@@ -3,6 +3,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
 
 import '../settings/terminal_color_scheme.dart';
+import '../settings/terminal_fonts.dart';
 import '../settings/terminal_settings.dart';
 import 'terminal_workspace.dart';
 
@@ -16,6 +17,9 @@ class TerminalSurface extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(terminalSettingsProvider).value;
+    // Watching the font provider ensures persisted system fonts are loaded
+    // before the terminal uses the family during startup.
+    final fontFamily = ref.watch(terminalFontFamilyProvider);
     final brightness = Theme.of(context).brightness;
     final scheme = settings == null
         ? TerminalColorSchemes.defaultScheme
@@ -49,13 +53,16 @@ class TerminalSurface extends ConsumerWidget {
         background: maidterm.DynamicColor.fixed(scheme.selection),
       ),
       cursorMotionDuration: const Duration(milliseconds: 90),
-      fontFamily: settings?.fontFamily ?? 'IBM Plex Mono',
+      fontFamily: fontFamily,
       fontSize: settings?.fontSize ?? 14.0,
       backgroundOpacity: (settings?.transparentBackground ?? false) ? 0 : 1,
     );
 
+    final transparent = settings?.transparentBackground ?? false;
     return ColoredBox(
-      color: Theme.of(context).colorScheme.surface,
+      color: transparent
+          ? Colors.transparent
+          : Theme.of(context).colorScheme.surface,
       child: maidterm.TerminalView(
         controller: tab.session.controller,
         autofocus: true,

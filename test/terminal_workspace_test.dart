@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:maidterm_app/shell/local_shell_session.dart';
 import 'package:maidterm_app/workspace/session_layout.dart';
@@ -22,6 +23,23 @@ void main() {
     );
   }
 
+  testWidgets('applies persisted font settings to the startup terminal', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'terminal.fontFamily': 'Fira Code',
+      'terminal.fontSize': 18.0,
+    });
+
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+
+    final terminal = tester.widget<maidterm.TerminalView>(
+      find.byType(maidterm.TerminalView),
+    );
+    expect(terminal.theme?.fontFamily, 'Fira Code');
+    expect(terminal.theme?.fontSize, 18.0);
+  });
   testWidgets('starts with one terminal filling the window', (tester) async {
     await tester.pumpWidget(buildWorkspace());
     await tester.pump();
@@ -53,9 +71,9 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(TerminalWorkspacePage)),
     );
-    container.read(terminalWorkspaceProvider.notifier).split(
-      SplitAxis.horizontal,
-    );
+    container
+        .read(terminalWorkspaceProvider.notifier)
+        .split(SplitAxis.horizontal);
     await tester.pump();
 
     final state = container.read(terminalWorkspaceProvider);

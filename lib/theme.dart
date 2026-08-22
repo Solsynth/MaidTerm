@@ -21,6 +21,7 @@ ThemeData createMaidTermTheme(Brightness brightness, {Color? seedColor}) {
     useMaterial3: true,
     colorScheme: colorScheme,
     brightness: brightness,
+    fontFamily: 'IBM Plex Sans',
     appBarTheme: const AppBarTheme(centerTitle: false),
     inputDecorationTheme: InputDecorationThemeData(
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -99,6 +100,7 @@ flutter.ThemeData _createWindowFrameTheme(ThemeData theme) {
     brightness: colors.brightness,
     useMaterial3: true,
     colorScheme: colorScheme,
+    fontFamily: 'IBM Plex Sans',
     iconTheme: flutter.IconThemeData(
       color: theme.iconTheme.color ?? colors.onSurface,
     ),

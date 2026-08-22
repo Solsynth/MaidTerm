@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  file_picker: ^11.0.3
   flutter_pty:
     path: packages/flutter_pty
   flutter_local_notifications: ^22.3.0
@@ -33,6 +34,7 @@ dependencies:
   uuid: ^4.6.0
   collection: ^1.19.1
   material_symbols_icons: ^4.2960.0
+  path_provider: ^2.1.6
   system_fonts: ^1.0.1
 
 dev_dependencies:
