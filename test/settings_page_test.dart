@@ -42,7 +42,11 @@ void main() {
     expect(container.read(terminalSettingsProvider).value?.fontSize, 16.0);
 
     // Toggle blink persists.
-    await tester.ensureVisible(find.text('Cursor blink'));
+    await tester.scrollUntilVisible(
+      find.text('Cursor blink'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cursor blink'));
     await tester.pumpAndSettle();
