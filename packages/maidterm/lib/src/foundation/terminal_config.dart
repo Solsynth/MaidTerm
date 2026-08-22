@@ -141,6 +141,10 @@ class TerminalConfig {
   ///
   /// Controls what the terminal reports when a program sends a device
   /// attributes request.
+  ///
+  /// The default advertises feature 4 (sixel graphics) in the primary
+  /// response; MaidTerm renders sixel in its input path, so the claim
+  /// is backed by real support.
   final DeviceAttributesResponse deviceAttributes;
 
   const TerminalConfig({
@@ -156,7 +160,9 @@ class TerminalConfig {
     this.kittyImageStorageLimit = 64 * 1024 * 1024,
     this.selectionClearOnTyping = true,
     this.scrollToBottom = .onKeystroke,
-    this.deviceAttributes = const DeviceAttributesResponse(),
+    this.deviceAttributes = const DeviceAttributesResponse(
+      primary: DeviceAttributesPrimary(features: [4]),
+    ),
   }) : assert(cols > 0, 'cols must be positive'),
        assert(rows > 0, 'rows must be positive'),
        assert(scrollbackLimit >= 0, 'scrollbackLimit must be non-negative'),

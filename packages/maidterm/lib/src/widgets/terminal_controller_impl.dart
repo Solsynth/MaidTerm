@@ -14,6 +14,7 @@ import 'selection_gesture_driver.dart';
 import 'terminal_controller.dart';
 import 'terminal_input_client.dart';
 import 'terminal_view_binding.dart';
+import 'vt_graphics_rewriter.dart';
 
 @internal
 class TerminalControllerImpl extends TerminalController
@@ -633,7 +634,24 @@ class TerminalControllerImpl extends TerminalController
   }
 
   @override
-  void write(Uint8List data) => terminal.write(data);
+  void write(Uint8List data) {
+    final rewritten = _vtGraphics.feed(data);
+    if (rewritten.isNotEmpty) terminal.write(rewritten);
+  }
+
+  /// Injects image ids into kitty transmits and converts sixel to kitty
+  /// graphics so the core acknowledges/renders both.
+  final VtGraphicsRewriter _vtGraphics = VtGraphicsRewriter(
+    nextImageId: _nextInjectedImageId,
+  );
+
+  /// Next image id for injected kitty transmits. The core auto-assigns
+  /// ids from 0x7FFFFFFF upward, so this walks the gap below it.
+  static const _injectedIdBase = 0x40000000;
+  static const _injectedIdSpan = 0x3FFFFFFF;
+  static var _injectedId = 0;
+
+  static int _nextInjectedImageId() => _injectedIdBase + (_injectedId++ % _injectedIdSpan);
 
   void _applyModes() {
     for (final entry in _config.modes.entries) {
