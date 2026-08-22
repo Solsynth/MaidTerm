@@ -41,6 +41,8 @@ class LocalShellSession {
       ),
     );
     _displayTitle = ValueNotifier<String>(_fallbackTitle);
+    _fullScreen = ValueNotifier<bool>(false);
+    _controller.addListener(_onControllerChanged);
     _controller.onBell = _handleBell;
     _controller.onNotification = _handleNotification;
     _controller.onOutput = _writeToPty;
@@ -90,6 +92,16 @@ class LocalShellSession {
 
   late final ValueNotifier<String> _displayTitle;
 
+  /// Whether the running program owns the terminal's alternate screen.
+  ///
+  /// Full-screen TUIs such as opencode, vim, and htop normally enter this
+  /// screen. It is a protocol-level signal and does not depend on the
+  /// executable's name.
+  late final ValueNotifier<bool> _fullScreen;
+
+  /// Live full-screen state for layout decisions around this session.
+  ValueListenable<bool> get isFullScreen => _fullScreen;
+
   /// The controller bound to this session; pass to [maidterm.TerminalView].
   maidterm.TerminalController get controller => _controller;
 
@@ -109,6 +121,11 @@ class LocalShellSession {
     }
   }
 
+  void _onPwdChanged() {
+    _pwd = _controller.pwd;
+    _refreshTitle();
+  }
+
   void _handleBell() {
     unawaited(SystemSound.play(SystemSoundType.alert));
   }
@@ -125,13 +142,18 @@ class LocalShellSession {
     _pty?.resize(rows, cols);
   }
 
-  void _onTitleChanged() {
-    _oscTitle = _controller.title;
-    _refreshTitle();
+  void _onControllerChanged() {
+    final next = _controller.activeScreen == .alternate;
+    if (_fullScreen.value != next) {
+      _fullScreen.value = next;
+      debugPrint(
+        '[MaidTerm] terminal mode: ${next ? 'full-screen' : 'normal'}',
+      );
+    }
   }
 
-  void _onPwdChanged() {
-    _pwd = _controller.pwd;
+  void _onTitleChanged() {
+    _oscTitle = _controller.title;
     _refreshTitle();
   }
 
@@ -181,6 +203,7 @@ class LocalShellSession {
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }
+    _controller.removeListener(_onControllerChanged);
     _controller.onOutput = null;
     _controller.onResize = null;
     _controller.onTitleChanged = null;
@@ -194,6 +217,7 @@ class LocalShellSession {
       }
       await pty.exitCode;
     }
+    _fullScreen.dispose();
     _displayTitle.dispose();
     _controller.dispose();
   }

@@ -78,7 +78,8 @@ final class TerminalPainterStack {
     _kittyImageCache.dispose();
   }
 
-  void paint(Canvas canvas) {
+  void paint(Canvas canvas, {required Size viewportSize}) {
+    _backgroundPainter.viewportSize = viewportSize;
     _kittyBelowBgPainter.paint(canvas);
     _backgroundPainter.paint(canvas);
     _kittyBelowTextPainter.paint(canvas);

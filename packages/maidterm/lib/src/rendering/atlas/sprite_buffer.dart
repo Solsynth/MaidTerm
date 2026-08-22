@@ -310,6 +310,25 @@ class RectSprites {
   /// Whether any row has at least one active rect.
   bool get hasSprites => _activeSlots > 0;
 
+  /// Returns the first explicit background run that spans the full grid width.
+  ///
+  /// Full-screen TUIs commonly paint their canvas with an explicit cell
+  /// background while leaving the terminal default unchanged.
+  int? colorForWidth(double width) {
+    for (var row = 0; row < _rowCount; row++) {
+      final count = _rowCounts[row];
+      final base = row * _stride;
+      for (var i = 0; i < count; i++) {
+        final slot = base + i;
+        final offset4 = slot * 4;
+        if (_rects[offset4] <= 0.001 && _rects[offset4 + 2] >= width - 0.001) {
+          return _colors[slot] & 0xFFFFFFFF;
+        }
+      }
+    }
+    return null;
+  }
+
   /// Appends a colored rect to the current row.
   void add(double left, double top, double right, double bottom, int argb) {
     assert(_currentRow >= 0, 'add() called outside beginRow/endRow');

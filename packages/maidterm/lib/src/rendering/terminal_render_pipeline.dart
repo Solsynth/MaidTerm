@@ -63,7 +63,8 @@ final class TerminalRenderPipeline {
     _frameBuilder.markRowsDirty(from, toExclusive);
   }
 
-  void paint(Canvas canvas) => _painters.paint(canvas);
+  void paint(Canvas canvas, {required Size viewportSize}) =>
+      _painters.paint(canvas, viewportSize: viewportSize);
 
   void refreshCursorGlyph() => _frameBuilder.refreshCursorGlyph();
 

@@ -19,9 +19,9 @@ import 'terminal_render_pipeline.dart';
 /// terminal resize), frame sync, and a paint stack.
 ///
 /// Sizing is determined by the parent constraints and cell metrics: the
-/// widget computes how many columns and rows fit, then sizes itself to
-/// exactly that grid. When the grid dimensions change, the terminal is
-/// resized and [onResize] fires.
+/// widget computes how many columns and rows fit, keeps those dimensions
+/// integral, and fills the available viewport around the grid. When the grid
+/// dimensions change, the terminal is resized and [onResize] fires.
 ///
 /// ```dart
 /// TerminalRenderer(
@@ -431,7 +431,7 @@ class TerminalRenderBox extends RenderBox {
 
     canvas.save();
     canvas.translate(offset.dx, offset.dy);
-    _pipeline.paint(canvas);
+    _pipeline.paint(canvas, viewportSize: size);
     canvas.restore();
   }
 
@@ -442,11 +442,16 @@ class TerminalRenderBox extends RenderBox {
     final maxW = constraints.hasBoundedWidth ? constraints.maxWidth : 0.0;
     final maxH = constraints.hasBoundedHeight ? constraints.maxHeight : 0.0;
     final (newCols, newRows) = _paintState.metrics.gridSize(maxW, maxH);
+    final gridWidth = newCols * _paintState.metrics.cellWidth;
+    final gridHeight = newRows * _paintState.metrics.cellHeight;
 
+    // Keep the character grid integral, but let the render box itself fill
+    // the viewport. Without this, the unused fractional cell remainder
+    // becomes a visible strip at the pane's right and bottom edges.
     size = constraints.constrain(
       Size(
-        newCols * _paintState.metrics.cellWidth,
-        newRows * _paintState.metrics.cellHeight,
+        constraints.hasBoundedWidth ? maxW : gridWidth,
+        constraints.hasBoundedHeight ? maxH : gridHeight,
       ),
     );
 

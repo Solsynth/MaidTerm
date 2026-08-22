@@ -129,6 +129,20 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ),
                   _SettingsSection(
+                    title: 'Pane margins',
+                    description: 'Set independent left, top, right, and bottom margins for normal and full-screen terminal modes.',
+                    child: _PaneMarginSettings(
+                      normalMargin: data.normalPaneMargin,
+                      fullScreenMargin: data.fullScreenPaneMargin,
+                      onNormalChanged: (value) => ref
+                          .read(terminalSettingsProvider.notifier)
+                          .setNormalPaneMargin(value),
+                      onFullScreenChanged: (value) => ref
+                          .read(terminalSettingsProvider.notifier)
+                          .setFullScreenPaneMargin(value),
+                    ),
+                  ),
+                  _SettingsSection(
                     title: 'Terminal themes',
                     description:
                         'Tune the palettes used in light and dark mode.',
@@ -299,14 +313,11 @@ class _BackgroundImageSettings extends ConsumerWidget {
   Future<void> _chooseImage(BuildContext context, WidgetRef ref) async {
     // MaidTerm is intentionally not sandboxed. file_picker's entitlement
     // guard must be bypassed for this desktop configuration.
-    await FilePicker.skipEntitlementsChecks();
     final selection = await FilePicker.pickFiles(
       dialogTitle: 'Choose background image',
       type: FileType.image,
     );
-    final path = selection == null || selection.files.isEmpty
-        ? null
-        : selection.files.first.path;
+    final path = selection.isEmpty ? null : selection.first.path;
     if (path == null) return;
 
     try {
@@ -318,6 +329,152 @@ class _BackgroundImageSettings extends ConsumerWidget {
       );
     }
   }
+}
+
+class _PaneMarginSettings extends StatelessWidget {
+  const _PaneMarginSettings({
+    required this.normalMargin,
+    required this.fullScreenMargin,
+    required this.onNormalChanged,
+    required this.onFullScreenChanged,
+  });
+
+  final EdgeInsets normalMargin;
+  final EdgeInsets fullScreenMargin;
+  final ValueChanged<EdgeInsets> onNormalChanged;
+  final ValueChanged<EdgeInsets> onFullScreenChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _PaneMarginEditor(
+          key: const ValueKey('normal-pane-margin'),
+          title: 'Normal mode',
+          margin: normalMargin,
+          onChanged: onNormalChanged,
+        ),
+        const SizedBox(height: 20),
+        _PaneMarginEditor(
+          key: const ValueKey('fullscreen-pane-margin'),
+          title: 'Full-screen mode',
+          margin: fullScreenMargin,
+          onChanged: onFullScreenChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _PaneMarginEditor extends StatefulWidget {
+  const _PaneMarginEditor({
+    super.key,
+    required this.title,
+    required this.margin,
+    required this.onChanged,
+  });
+
+  final String title;
+  final EdgeInsets margin;
+  final ValueChanged<EdgeInsets> onChanged;
+
+  @override
+  State<_PaneMarginEditor> createState() => _PaneMarginEditorState();
+}
+
+class _PaneMarginEditorState extends State<_PaneMarginEditor> {
+  static const _labels = ['Left', 'Top', 'Right', 'Bottom'];
+  late final List<TextEditingController> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = _values(widget.margin)
+        .map((value) => TextEditingController(text: value.toString()))
+        .toList();
+  }
+
+  @override
+  void didUpdateWidget(_PaneMarginEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.margin != widget.margin) {
+      final values = _values(widget.margin);
+      for (var i = 0; i < values.length; i++) {
+        _controllers[i].text = values[i].toString();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _commit() {
+    final values = <double>[];
+    for (var i = 0; i < _controllers.length; i++) {
+      final value = double.tryParse(_controllers[i].text);
+      if (value == null || !value.isFinite || value < 0) {
+        _controllers[i].text = _values(widget.margin)[i].toString();
+        return;
+      }
+      values.add(value);
+    }
+    final next = EdgeInsets.fromLTRB(
+      values[0],
+      values[1],
+      values[2],
+      values[3],
+    );
+    widget.onChanged(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(widget.title, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (var i = 0; i < _labels.length; i++)
+              SizedBox(
+                width: 96,
+                child: TextField(
+                  key: ValueKey('${widget.title}:margin-$i'),
+                  controller: _controllers[i],
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    labelText: _labels[i],
+                    suffixText: 'px',
+                    isDense: true,
+                    border: const OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _commit(),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static List<double> _values(EdgeInsets margin) => [
+    margin.left,
+    margin.top,
+    margin.right,
+    margin.bottom,
+  ];
 }
 
 class _SettingsSection extends StatelessWidget {

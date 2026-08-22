@@ -40,34 +40,40 @@ class TerminalSurface extends ConsumerWidget {
       }
     }
 
-    final theme = maidterm.TerminalTheme(
-      palette: maidterm.ColorPalette(
-        ansiColors: scheme.ansiColors,
-        background: scheme.background,
-        foreground: scheme.foreground,
-      ),
-      cursor: maidterm.CursorTheme(
-        color: maidterm.DynamicColor.fixed(scheme.cursor),
-      ),
-      selection: maidterm.SelectionTheme(
-        background: maidterm.DynamicColor.fixed(scheme.selection),
-      ),
-      cursorMotionDuration: const Duration(milliseconds: 90),
-      fontFamily: fontFamily,
-      fontSize: settings?.fontSize ?? 14.0,
-      backgroundOpacity: (settings?.transparentBackground ?? false) ? 0 : 1,
-    );
-
     final transparent = settings?.transparentBackground ?? false;
-    return ColoredBox(
-      color: transparent
-          ? Colors.transparent
-          : Theme.of(context).colorScheme.surface,
-      child: maidterm.TerminalView(
-        controller: tab.session.controller,
-        autofocus: true,
-        theme: theme,
-      ),
+    maidterm.TerminalTheme buildTheme(bool fullScreen) =>
+        maidterm.TerminalTheme(
+          palette: maidterm.ColorPalette(
+            ansiColors: scheme.ansiColors,
+            background: scheme.background,
+            foreground: scheme.foreground,
+          ),
+          cursor: maidterm.CursorTheme(
+            color: maidterm.DynamicColor.fixed(scheme.cursor),
+          ),
+          selection: maidterm.SelectionTheme(
+            background: maidterm.DynamicColor.fixed(scheme.selection),
+          ),
+          cursorMotionDuration: const Duration(milliseconds: 90),
+          fontFamily: fontFamily,
+          fontSize: settings?.fontSize ?? 14.0,
+          backgroundOpacity: transparent && !fullScreen ? 0 : 1,
+        );
+
+    final normalMargin = settings?.normalPaneMargin ?? const EdgeInsets.all(8);
+    final fullScreenMargin = settings?.fullScreenPaneMargin ?? EdgeInsets.zero;
+    return ValueListenableBuilder<bool>(
+      valueListenable: tab.session.isFullScreen,
+      builder: (context, fullScreen, _) {
+        return maidterm.TerminalView(
+          controller: tab.session.controller,
+          theme: buildTheme(fullScreen),
+          autofocus: true,
+          // Alternate-screen ownership is the terminal protocol's
+          // full-screen signal. Apply the selected mode's margins.
+          padding: fullScreen ? fullScreenMargin : normalMargin,
+        );
+      },
     );
   }
 }

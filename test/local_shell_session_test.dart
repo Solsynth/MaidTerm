@@ -30,9 +30,7 @@ void main() {
     // vim restored its title on exit; the shell reports cwd via OSC 7.
     s.controller.write(utf8.encode('\x1b]2;\x07'));
     final home = Platform.environment['HOME']!;
-    s.controller.write(
-      utf8.encode('\x1b]7;file://$home/repo\x07'),
-    );
+    s.controller.write(utf8.encode('\x1b]7;file://$home/repo\x07'));
     expect(s.title.value, '~/repo');
     s.dispose();
   });
@@ -41,6 +39,18 @@ void main() {
     final s = session();
     s.controller.write(utf8.encode('\x1b]7;file:///tmp/x\x07'));
     expect(s.title.value, '/tmp/x');
+    s.dispose();
+  });
+
+  test('alternate-screen ownership identifies full-screen programs', () {
+    final s = session();
+    expect(s.isFullScreen.value, isFalse);
+
+    s.controller.write(utf8.encode('\x1b[?1049h'));
+    expect(s.isFullScreen.value, isTrue);
+
+    s.controller.write(utf8.encode('\x1b[?1049l'));
+    expect(s.isFullScreen.value, isFalse);
     s.dispose();
   });
 }

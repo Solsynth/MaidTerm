@@ -4,6 +4,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../settings/settings_page.dart';
+import '../settings/terminal_color_scheme.dart';
+import '../settings/terminal_settings.dart';
 import 'session_layout.dart';
 import 'terminal_surface.dart';
 import 'terminal_workspace.dart';
@@ -58,8 +60,9 @@ class _LayoutNode extends ConsumerWidget {
         return _ResizableSplit(
           axis: axis,
           ratio: ratio,
-          onRatioChanged: (value) =>
-              ref.read(terminalWorkspaceProvider.notifier).setSplitRatio(id, value),
+          onRatioChanged: (value) => ref
+              .read(terminalWorkspaceProvider.notifier)
+              .setSplitRatio(id, value),
           first: _LayoutNode(node: first),
           second: _LayoutNode(node: second),
         );
@@ -181,6 +184,14 @@ class _TerminalPaneView extends ConsumerWidget {
     final paneTabs = workspace.tabsInPane(paneId);
     final focused = workspace.focusedPaneId == paneId;
     final selected = workspace.selectedTabInPane(paneId);
+    final settings = ref.watch(terminalSettingsProvider).value;
+    final brightness = Theme.of(context).brightness;
+    final terminalScheme = settings == null
+        ? TerminalColorSchemes.defaultScheme
+        : brightness == Brightness.light
+        ? settings.lightTheme
+        : settings.darkTheme;
+    final transparent = settings?.transparentBackground ?? false;
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -197,8 +208,29 @@ class _TerminalPaneView extends ConsumerWidget {
           ),
           Expanded(
             child: selected == null
-                ? const SizedBox.shrink()
-                : TerminalSurface(tab: selected),
+                ? ColoredBox(
+                    key: const ValueKey('terminal-pane-backdrop'),
+                    color: transparent
+                        ? Colors.transparent
+                        : terminalScheme.background,
+                  )
+                : ValueListenableBuilder<bool>(
+                    valueListenable: selected.session.isFullScreen,
+                    builder: (context, fullScreen, _) => Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Positioned.fill(
+                          child: ColoredBox(
+                            key: const ValueKey('terminal-pane-backdrop'),
+                            color: fullScreen || !transparent
+                                ? terminalScheme.background
+                                : Colors.transparent,
+                          ),
+                        ),
+                        TerminalSurface(tab: selected),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),
@@ -254,8 +286,7 @@ class _PaneTabBar extends ConsumerWidget {
               child: DragTarget<_TabDragData>(
                 onWillAcceptWithDetails: (details) =>
                     details.data.tabId.isNotEmpty,
-                onAcceptWithDetails: (details) =>
-                    _acceptTab(ref, details.data),
+                onAcceptWithDetails: (details) => _acceptTab(ref, details.data),
                 builder: (context, candidate, rejected) {
                   final hovering = candidate.isNotEmpty;
                   return DecoratedBox(
@@ -271,9 +302,7 @@ class _PaneTabBar extends ConsumerWidget {
                               padding: const EdgeInsets.only(left: 12),
                               child: Text(
                                 hovering ? 'Drop tab here' : 'New terminal',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelMedium
+                                style: Theme.of(context).textTheme.labelMedium
                                     ?.copyWith(color: scheme.onSurfaceVariant),
                               ),
                             ),
@@ -288,8 +317,11 @@ class _PaneTabBar extends ConsumerWidget {
                               if (index == paneTabs.length) {
                                 return _TabDropTail(
                                   hovering: hovering,
-                                  onAccept: (data) =>
-                                      _acceptTab(ref, data, toIndex: paneTabs.length),
+                                  onAccept: (data) => _acceptTab(
+                                    ref,
+                                    data,
+                                    toIndex: paneTabs.length,
+                                  ),
                                 );
                               }
                               final tab = paneTabs[index];
@@ -376,10 +408,14 @@ class _PaneTabBar extends ConsumerWidget {
                   minHeight: _paneTabBarHeight,
                 ),
                 onPressed: () {
-                  final pane = ref.read(terminalWorkspaceProvider).panes[paneId];
+                  final pane = ref
+                      .read(terminalWorkspaceProvider)
+                      .panes[paneId];
                   if (pane == null) return;
                   for (final tabId in pane.tabIds) {
-                    ref.read(terminalWorkspaceProvider.notifier).closeTab(tabId);
+                    ref
+                        .read(terminalWorkspaceProvider.notifier)
+                        .closeTab(tabId);
                   }
                 },
                 icon: const Icon(Symbols.close, size: 18),
@@ -393,9 +429,7 @@ class _PaneTabBar extends ConsumerWidget {
                 minHeight: _paneTabBarHeight,
               ),
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const SettingsPage(),
-                ),
+                MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
               ),
               icon: const Icon(Symbols.settings, size: 18),
             ),
@@ -449,10 +483,7 @@ class _DraggablePaneTab extends StatelessWidget {
             children: [
               Icon(Symbols.terminal, size: 16, color: scheme.onSurfaceVariant),
               const SizedBox(width: 6),
-              Text(
-                tab.title,
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
+              Text(tab.title, style: Theme.of(context).textTheme.labelMedium),
             ],
           ),
         ),
@@ -555,9 +586,8 @@ class _PaneTabChip extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     tab.title,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: selected ? scheme.primary : null,
-                    ),
+                    style: Theme.of(context).textTheme.labelMedium
+                        ?.copyWith(color: selected ? scheme.primary : null),
                   ),
                   const SizedBox(width: 2),
                   IconButton(
