@@ -71,16 +71,4 @@ void main() {
     expect(s.progress.value, isNull);
     s.dispose();
   });
-
-  test('alternate-screen ownership identifies full-screen programs', () {
-    final s = session();
-    expect(s.isFullScreen.value, isFalse);
-
-    s.controller.write(utf8.encode('\x1b[?1049h'));
-    expect(s.isFullScreen.value, isTrue);
-
-    s.controller.write(utf8.encode('\x1b[?1049l'));
-    expect(s.isFullScreen.value, isFalse);
-    s.dispose();
-  });
 }

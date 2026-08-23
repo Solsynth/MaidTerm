@@ -97,7 +97,7 @@ void main() {
     );
   });
 
-  testWidgets('edits and persists both pane margin modes', (tester) async {
+  testWidgets('edits and persists pane margins', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
     await tester.pumpWidget(
@@ -121,14 +121,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final normalLeft = find.byKey(const ValueKey('Normal mode:margin-0'));
-    final fullScreenTop = find.byKey(
-      const ValueKey('Full-screen mode:margin-1'),
-    );
-    await tester.enterText(normalLeft, '12');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
-    await tester.enterText(fullScreenTop, '3.5');
+    final terminalLeft = find.byKey(const ValueKey('Terminal:margin-0'));
+    await tester.enterText(terminalLeft, '12');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
@@ -136,13 +130,8 @@ void main() {
       tester.element(find.byType(SettingsPage)),
     ).read(terminalSettingsProvider).value!;
     expect(settings.normalPaneMargin.left, 12);
-    expect(settings.fullScreenPaneMargin.top, 3.5);
 
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('terminal.normalPaneMargin'), contains('"left":12'));
-    expect(
-      prefs.getString('terminal.fullScreenPaneMargin'),
-      contains('"top":3.5'),
-    );
   });
 }

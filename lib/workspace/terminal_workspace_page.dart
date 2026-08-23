@@ -278,39 +278,36 @@ class _TerminalPaneView extends ConsumerWidget {
             key: const ValueKey('terminal-pane-backdrop'),
             color: transparent ? Colors.transparent : terminalScheme.background,
           )
-        : ValueListenableBuilder<bool>(
-            valueListenable: selected.session.isFullScreen,
-            builder: (context, fullScreen, _) => Stack(
-              alignment: Alignment.center,
-              children: [
-                Positioned.fill(
-                  child: ColoredBox(
-                    key: const ValueKey('terminal-pane-backdrop'),
-                    color: fullScreen || !transparent
-                        ? terminalScheme.background
-                        : Colors.transparent,
-                  ),
+        : Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(
+                child: ColoredBox(
+                  key: const ValueKey('terminal-pane-backdrop'),
+                  color: transparent
+                      ? Colors.transparent
+                      : terminalScheme.background,
                 ),
-                Listener(
-                  onPointerDown: (_) {
-                    ref
-                        .read(terminalWorkspaceProvider.notifier)
-                        .focusPane(paneId);
-                    selected.session.controller.requestFocus();
-                  },
-                  child: TerminalSurface(
-                    // Stable identity per pane: splitting or closing panes
-                    // restructures the layout tree, which would otherwise
-                    // destroy and recreate this terminal's element and tear
-                    // down the session's focus binding (the cursor would stop
-                    // tracking focus).
-                    key: GlobalObjectKey(workspace.panes[paneId]!.viewKey),
-                    tab: selected,
-                    autofocus: focused,
-                  ),
+              ),
+              Listener(
+                onPointerDown: (_) {
+                  ref
+                      .read(terminalWorkspaceProvider.notifier)
+                      .focusPane(paneId);
+                  selected.session.controller.requestFocus();
+                },
+                child: TerminalSurface(
+                  // Stable identity per pane: splitting or closing panes
+                  // restructures the layout tree, which would otherwise
+                  // destroy and recreate this terminal's element and tear
+                  // down the session's focus binding (the cursor would stop
+                  // tracking focus).
+                  key: GlobalObjectKey(workspace.panes[paneId]!.viewKey),
+                  tab: selected,
+                  autofocus: focused,
                 ),
-              ],
-            ),
+              ),
+            ],
           );
 
     final scheme = Theme.of(context).colorScheme;
@@ -342,7 +339,7 @@ class _TerminalPaneView extends ConsumerWidget {
 const _workspaceTabBarHeight = 40.0;
 const _workspaceTabBarWidth = 180.0;
 const _compactTabBarWidth = 160.0;
-const _minWorkspaceTabBarWidth = 36.0;
+const _minWorkspaceTabBarWidth = 48.0;
 const _evenlySpacedActionWidth = 260.0;
 
 /// The floating-land chrome: a ring of ground around the whole layout and
@@ -351,6 +348,9 @@ const _workspaceGroundPadding = 10.0;
 const _paneGap = 10.0;
 const _paneRadius = 14.0;
 const _tabBarHandleWidth = 1.0;
+const _tabEntryVerticalPadding = 2.0;
+const _verticalTabStripTopMargin =
+    _workspaceGroundPadding - _tabEntryVerticalPadding;
 
 class _ResizableTabBar extends StatefulWidget {
   const _ResizableTabBar({
@@ -519,11 +519,7 @@ class _WorkspaceTabBar extends ConsumerWidget {
       required Widget icon,
       required VoidCallback onPressed,
     }) {
-      final controlSize = _vertical
-          ? (width ?? _workspaceTabBarWidth)
-                .clamp(_minWorkspaceTabBarWidth, _workspaceTabBarHeight)
-                .toDouble()
-          : _workspaceTabBarHeight;
+      const controlSize = _workspaceTabBarHeight;
       return IconButton(
         tooltip: tooltip,
         visualDensity: VisualDensity.compact,
@@ -602,7 +598,9 @@ class _WorkspaceTabBar extends ConsumerWidget {
             ),
             child: ListView.builder(
               scrollDirection: _vertical ? Axis.vertical : Axis.horizontal,
-              padding: EdgeInsets.zero,
+              padding: EdgeInsets.only(
+                top: _vertical ? _verticalTabStripTopMargin : 0,
+              ),
               itemCount: workspace.tabs.length + 1,
               itemBuilder: (context, index) {
                 if (index == workspace.tabs.length) {
@@ -702,11 +700,16 @@ class _WorkspaceTabEntry extends StatelessWidget {
   final ValueChanged<String> onClosePane;
   @override
   Widget build(BuildContext context) {
-    final chipHeight = (height - 8).clamp(1, height).toDouble();
+    final vertical =
+        position == TabBarPosition.left || position == TabBarPosition.right;
+    final verticalPadding = vertical ? _tabEntryVerticalPadding : 4.0;
+    final chipHeight = (height - (verticalPadding * 2))
+        .clamp(1, height)
+        .toDouble();
     final panes = tab.panes.values.toList();
     if (panes.length < 2) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        padding: EdgeInsets.symmetric(horizontal: 4, vertical: verticalPadding),
         child: _PaneTabChip(
           key: ValueKey('pane-tab-${panes.first.tab.id}'),
           tab: panes.first.tab,
@@ -720,7 +723,7 @@ class _WorkspaceTabEntry extends StatelessWidget {
       );
     }
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 4, vertical: verticalPadding),
       child: _MergedPaneTabPill(
         panes: panes,
         selectedPaneId: selected ? tab.focusedPaneId : null,

@@ -9,13 +9,14 @@ import 'package:maidterm/src/rendering/paint_state.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('uses a full-width cell fill for the terminal canvas', () async {
-    final state = TerminalPaintState(
-      TerminalTheme.light(),
-      const CellMetrics(cellWidth: 10, cellHeight: 10, baseline: 8),
-    )
-      ..cols = 2
-      ..rows = 1;
+  test('keeps full-width cell fills within the terminal grid', () async {
+    final state =
+        TerminalPaintState(
+            TerminalTheme.light(),
+            const CellMetrics(cellWidth: 10, cellHeight: 10, baseline: 8),
+          )
+          ..cols = 2
+          ..rows = 1;
     final sprites = SpriteBuffer()..configure(1, 2);
     addTearDown(sprites.dispose);
 
@@ -24,20 +25,23 @@ void main() {
     sprites.endRow();
     sprites.seal();
 
-    final painter = BackgroundPainter(state, sprites)..viewportSize = const Size(30, 10);
+    final painter = BackgroundPainter(state, sprites)
+      ..viewportSize = const Size(30, 10);
     final recorder = PictureRecorder();
     painter.paint(Canvas(recorder));
     final image = await recorder.endRecording().toImage(30, 10);
     addTearDown(image.dispose);
-    final bytes = (await image.toByteData(format: ImageByteFormat.rawRgba))!.buffer;
+    final bytes = (await image.toByteData(
+      format: ImageByteFormat.rawRgba,
+    ))!.buffer;
     final rgba = Uint8List.view(bytes);
 
     expect(rgba.sublist(0, 4), [0x23, 0x24, 0x36, 0xFF]);
     final outsideGrid = (25 * 4);
     expect(rgba.sublist(outsideGrid, outsideGrid + 4), [
-      0x23,
-      0x24,
-      0x36,
+      0xFA,
+      0xFA,
+      0xFA,
       0xFF,
     ]);
   });

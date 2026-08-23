@@ -8,12 +8,12 @@ import '../atlas/sprite_buffer.dart';
 import '../paint_state.dart';
 import 'terminal_painter.dart';
 
-/// Paints the terminal background layer.
+/// Paints the terminal default background, then explicit cell backgrounds.
 ///
-/// At full opacity, fills the grid with the first explicit full-width cell
-/// background when present, falling back to the terminal background, then
-/// draws per-cell explicit background rects on top via a batched
-/// [Canvas.drawVertices] call.
+/// Explicit cell backgrounds are limited to the cells that specify them. A
+/// full-width run is not a terminal-wide fill: ordinary applications can emit
+/// one while using the alternate screen, and promoting it would briefly tint
+/// unrelated rows and the padding during screen transitions.
 ///
 /// When [TerminalPaintState.backgroundOpacity] is less than 1.0, skips
 /// the grid fill so the backdrop behind the repaint boundary layer
@@ -40,23 +40,15 @@ class BackgroundPainter implements TerminalPainter {
     final terminalBackgroundArgb = _state.terminalBackgroundArgb & 0xFFFFFFFF;
     final gridWidth = _state.cols * _state.metrics.cellWidth;
     final gridHeight = _state.rows * _state.metrics.cellHeight;
-    final cellBackgroundArgb =
-        _sprites.background.colorForWidth(gridWidth) ?? terminalBackgroundArgb;
-    if (_lastLoggedArgb != cellBackgroundArgb) {
-      _lastLoggedArgb = cellBackgroundArgb;
+    if (_lastLoggedArgb != terminalBackgroundArgb) {
+      _lastLoggedArgb = terminalBackgroundArgb;
       final terminalHex = terminalBackgroundArgb
           .toRadixString(16)
           .padLeft(8, '0');
-      final fillHex = (cellBackgroundArgb & 0xFFFFFFFF)
-          .toRadixString(16)
-          .padLeft(8, '0');
-      debugPrint(
-        '[MaidTerm] terminal background: #$terminalHex '
-        '(cell fill: #$fillHex)',
-      );
+      debugPrint('[MaidTerm] terminal background: #$terminalHex');
     }
     if (_state.theme.backgroundOpacity >= 1.0) {
-      _fillPaint.color = Color(cellBackgroundArgb);
+      _fillPaint.color = Color(terminalBackgroundArgb);
       canvas.drawRect(
         Rect.fromLTWH(
           0,

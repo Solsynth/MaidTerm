@@ -47,13 +47,11 @@ void main() {
     expect(terminal.theme?.fontSize, 18.0);
   });
 
-  testWidgets('applies separate margins for normal and alternate screens', (
+  testWidgets('keeps pane margins across alternate-screen switches', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
       'terminal.normalPaneMargin': '{"left":1,"top":2,"right":3,"bottom":4}',
-      'terminal.fullScreenPaneMargin':
-          '{"left":5,"top":6,"right":7,"bottom":8}',
     });
 
     await tester.pumpWidget(buildWorkspace());
@@ -72,7 +70,7 @@ void main() {
 
     session.controller.write(utf8.encode('\x1b[?1049h'));
     await tester.pump();
-    expect(currentTerminal().padding, const EdgeInsets.fromLTRB(5, 6, 7, 8));
+    expect(currentTerminal().padding, const EdgeInsets.fromLTRB(1, 2, 3, 4));
 
     session.controller.write(utf8.encode('\x1b[?1049l'));
     await tester.pump();
@@ -158,6 +156,9 @@ void main() {
     await tester.pumpAndSettle();
 
     final tabBar = find.byKey(const ValueKey('workspace-tab-bar'));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
     expect(tester.getSize(tabBar), const Size(240, 640));
     expect(find.byTooltip('Split right'), findsOneWidget);
 
@@ -168,10 +169,22 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(tester.getSize(tabBar), const Size(36, 640));
+    expect(tester.getSize(tabBar), const Size(48, 640));
     expect(find.byTooltip('Split right'), findsNothing);
     expect(find.byTooltip('Settings (Cmd+,)'), findsNothing);
     expect(find.byTooltip('New tab'), findsOneWidget);
+    container.read(terminalWorkspaceProvider.notifier).openTerminal();
+    await tester.pumpAndSettle();
+
+    final tabs = container.read(terminalWorkspaceProvider).tabs;
+    final firstTabRect = tester.getRect(
+      find.byKey(ValueKey('pane-tab-${tabs.first.focusedPane!.tab.id}')),
+    );
+    final secondTabRect = tester.getRect(
+      find.byKey(ValueKey('pane-tab-${tabs.last.focusedPane!.tab.id}')),
+    );
+    expect(firstTabRect.top, 10);
+    expect(secondTabRect.top - firstTabRect.bottom, 4);
 
     await tester.drag(
       find.byKey(const ValueKey('tab-bar-resize-handle')),
@@ -179,7 +192,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(tester.getSize(tabBar).width, greaterThan(36));
+    expect(tester.getSize(tabBar).width, greaterThan(48));
     expect(find.byTooltip('Split right'), findsOneWidget);
   });
 
@@ -342,7 +355,7 @@ void main() {
     expect(pane1.tab.session.controller.hasFocus, isFalse);
     expect(pane2.tab.session.controller.hasFocus, isTrue);
   });
-  testWidgets('ignores transparent background in full-screen mode', (
+  testWidgets('keeps transparent background on alternate screens', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
@@ -373,14 +386,14 @@ void main() {
     session.controller.write(utf8.encode('\x1b[?1049h'));
     await tester.pump();
 
-    expect(currentTerminal().theme?.backgroundOpacity, 1);
+    expect(currentTerminal().theme?.backgroundOpacity, 0);
     expect(
       tester
           .widget<ColoredBox>(
             find.byKey(const ValueKey('terminal-pane-backdrop')),
           )
           .color,
-      const Color(0xFFFAFAFA),
+      Colors.transparent,
     );
   });
 
