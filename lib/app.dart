@@ -1,12 +1,15 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:material_ui/material_ui.dart' hide GlobalMaterialLocalizations;
 import 'package:material_ui/material_ui.dart'
     as material_ui
     show GlobalMaterialLocalizations;
 
-import 'settings/background_image.dart';
 import 'settings/settings_page.dart';
 import 'settings/terminal_settings.dart';
 import 'workspace/terminal_workspace.dart';
@@ -103,15 +106,27 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
         GlobalWidgetsLocalizations.delegate,
       ],
       navigatorObservers: [_SettingsTitleObserver(_settingsOpen)],
-      // The frame sits above the navigator inside this builder: the whole
-      // app (all routes) is its child, so the title bar never disappears.
+      // The frame is the single page of an outer Navigator so its chrome —
+      // the burger tooltip and popup menu — have an Overlay and Navigator
+      // above the app routes; the app's own navigator stays inside the
+      // frame as the page's child.
       // ignore: deprecated_member_use
       builder: (context, child) => MaterialUiCompatibilityBridge(
-        child: ValueListenableBuilder<bool>(
-          valueListenable: _settingsOpen,
-          builder: (context, settingsOpen, _) => MaidTermWindowScaffold(
-            title: settingsOpen ? 'Settings' : 'MaidTerm',
-            child: MaidTermAppBackground(child: child!),
+        child: Navigator(
+          onGenerateRoute: (settings) => PageRouteBuilder<void>(
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                _FramePage(
+                  settingsOpen: _settingsOpen,
+                  onNewTab: _openTerminal,
+                  onSplitRight: () => _split(SplitAxis.horizontal),
+                  onSplitBelow: () => _split(SplitAxis.vertical),
+                  onCloseTab: _closeSelectedTab,
+                  onClosePane: _closeFocusedPane,
+                  onSettings: _openSettings,
+                  child: child!,
+                ),
           ),
         ),
       ),
@@ -142,6 +157,171 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
         },
         child: const TerminalWorkspacePage(),
       ),
+    );
+  }
+}
+
+/// The window frame as the outer navigator's single page. Watches the
+/// settings provider directly so toggling the title-bar menu button applies
+/// live, without re-creating the route.
+class _FramePage extends ConsumerWidget {
+  const _FramePage({
+    required this.settingsOpen,
+    required this.child,
+    required this.onNewTab,
+    required this.onSplitRight,
+    required this.onSplitBelow,
+    required this.onCloseTab,
+    required this.onClosePane,
+    required this.onSettings,
+  });
+
+  final ValueListenable<bool> settingsOpen;
+  final Widget child;
+  final VoidCallback onNewTab;
+  final VoidCallback onSplitRight;
+  final VoidCallback onSplitBelow;
+  final VoidCallback onCloseTab;
+  final VoidCallback onClosePane;
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(terminalSettingsProvider).value;
+    final showMenu = settings?.showTitleBarMenuButton ?? false;
+    return ValueListenableBuilder<bool>(
+      valueListenable: settingsOpen,
+      builder: (context, settingsOpen, _) => MaidTermWindowScaffold(
+        title: settingsOpen ? 'Settings' : 'MaidTerm',
+        menuButton: showMenu
+            ? _TitleBarMenuButton(
+                onNewTab: onNewTab,
+                onSplitRight: onSplitRight,
+                onSplitBelow: onSplitBelow,
+                onCloseTab: onCloseTab,
+                onClosePane: onClosePane,
+                onSettings: onSettings,
+              )
+            : null,
+        child: child,
+      ),
+    );
+  }
+}
+
+enum _TitleBarMenuAction { newTab, splitRight, splitBelow, closeTab, closePane, settings }
+
+/// The title-bar burger menu: mirrors the macOS Terminal menu and the app
+/// shortcuts for platforms without a system menu bar.
+class _TitleBarMenuButton extends StatelessWidget {
+  const _TitleBarMenuButton({
+    required this.onNewTab,
+    required this.onSplitRight,
+    required this.onSplitBelow,
+    required this.onCloseTab,
+    required this.onClosePane,
+    required this.onSettings,
+  });
+
+  final VoidCallback onNewTab;
+  final VoidCallback onSplitRight;
+  final VoidCallback onSplitBelow;
+  final VoidCallback onCloseTab;
+  final VoidCallback onClosePane;
+  final VoidCallback onSettings;
+
+  static final bool _macOS = Platform.isMacOS;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    PopupMenuItem<_TitleBarMenuAction> item(
+      _TitleBarMenuAction action,
+      String label,
+      IconData icon,
+      String? shortcut,
+    ) {
+      return PopupMenuItem(
+        value: action,
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label)),
+            if (shortcut != null) ...[
+              const SizedBox(width: 24),
+              Text(
+                shortcut,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return PopupMenuButton<_TitleBarMenuAction>(
+      tooltip: 'Menu',
+      icon: const Icon(Symbols.menu, size: 18),
+      position: PopupMenuPosition.under,
+      onSelected: (action) {
+        switch (action) {
+          case _TitleBarMenuAction.newTab:
+            onNewTab();
+          case _TitleBarMenuAction.splitRight:
+            onSplitRight();
+          case _TitleBarMenuAction.splitBelow:
+            onSplitBelow();
+          case _TitleBarMenuAction.closeTab:
+            onCloseTab();
+          case _TitleBarMenuAction.closePane:
+            onClosePane();
+          case _TitleBarMenuAction.settings:
+            onSettings();
+        }
+      },
+      itemBuilder: (context) => [
+        item(
+          _TitleBarMenuAction.newTab,
+          'New Tab',
+          Symbols.add,
+          _macOS ? '⌘T' : null,
+        ),
+        item(
+          _TitleBarMenuAction.splitRight,
+          'Split Pane Right',
+          Symbols.vertical_split,
+          _macOS ? '⌘D' : null,
+        ),
+        item(
+          _TitleBarMenuAction.splitBelow,
+          'Split Pane Below',
+          Symbols.horizontal_split,
+          _macOS ? '⌘⇧D' : null,
+        ),
+        const PopupMenuDivider(),
+        item(
+          _TitleBarMenuAction.closeTab,
+          'Close Tab',
+          Symbols.close,
+          _macOS ? '⌘W' : null,
+        ),
+        item(
+          _TitleBarMenuAction.closePane,
+          'Close Pane',
+          Symbols.splitscreen,
+          _macOS ? '⌘⇧W' : null,
+        ),
+        const PopupMenuDivider(),
+        item(
+          _TitleBarMenuAction.settings,
+          'Settings…',
+          Symbols.settings,
+          _macOS ? '⌘,' : null,
+        ),
+      ],
     );
   }
 }

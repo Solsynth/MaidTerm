@@ -4,7 +4,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
 
-import '../settings/settings_page.dart';
 import '../settings/terminal_color_scheme.dart';
 import '../settings/terminal_settings.dart';
 import '../settings/background_image.dart';
@@ -343,8 +342,6 @@ const _workspaceTabBarHeight = 40.0;
 const _workspaceTabBarWidth = 180.0;
 const _compactTabBarWidth = 160.0;
 const _minWorkspaceTabBarWidth = 48.0;
-const _evenlySpacedActionWidth = 260.0;
-
 /// The floating-land chrome: a ring of ground around the whole layout and
 /// between split panes, plus the land rounding.
 const _workspaceGroundPadding = 10.0;
@@ -503,92 +500,12 @@ class _WorkspaceTabBar extends ConsumerWidget {
 
   Widget _buildTabBar(BuildContext context, WidgetRef ref, bool compact) {
     final scheme = Theme.of(context).colorScheme;
-    final backgroundImage = ref
-        .watch(maidTermBackgroundImageProvider)
-        .asData
-        ?.value;
-    final backgroundImageEnabled =
-        ref.watch(maidTermBackgroundImageEnabledProvider).asData?.value ?? true;
-    final hasBackgroundImage =
-        backgroundImageEnabled && backgroundImage != null;
     final notifier = ref.read(terminalWorkspaceProvider.notifier);
 
     void reorderTab(String tabId, {int? toIndex}) {
       notifier.reorderTab(tabId, toIndex ?? workspace.tabs.length);
     }
 
-    Widget actionButton({
-      required String tooltip,
-      required Widget icon,
-      required VoidCallback onPressed,
-    }) {
-      const controlSize = _workspaceTabBarHeight;
-      return IconButton(
-        tooltip: tooltip,
-        visualDensity: VisualDensity.compact,
-        padding: EdgeInsets.zero,
-        constraints: BoxConstraints(
-          minWidth: controlSize,
-          minHeight: controlSize,
-        ),
-        onPressed: onPressed,
-        icon: icon,
-      );
-    }
-
-    final focusedPaneId = workspace.focusedPaneId;
-    final evenlySpaced =
-        _vertical &&
-        !compact &&
-        (width ?? _workspaceTabBarWidth) >= _evenlySpacedActionWidth;
-    final actions = <Widget>[
-      if (!compact)
-        actionButton(
-          tooltip: 'Split right',
-          icon: const Icon(Symbols.vertical_split, size: 20),
-          onPressed: () {
-            if (focusedPaneId != null) {
-              notifier.split(SplitAxis.horizontal);
-            }
-          },
-        ),
-      if (!compact)
-        actionButton(
-          tooltip: 'Split below',
-          icon: const Icon(Symbols.horizontal_split, size: 20),
-          onPressed: () {
-            if (focusedPaneId != null) {
-              notifier.split(SplitAxis.vertical);
-            }
-          },
-        ),
-      actionButton(
-        tooltip: 'New tab',
-        icon: const Icon(Symbols.add, size: 20),
-        onPressed: notifier.openTerminal,
-      ),
-
-      if (!compact && workspace.hasSplits)
-        actionButton(
-          tooltip: 'Close pane',
-          icon: const Icon(Symbols.close, size: 18),
-          onPressed: () {
-            if (focusedPaneId != null) {
-              notifier.closePane(focusedPaneId);
-            }
-          },
-        ),
-      if (evenlySpaced) const Spacer(),
-      if (!compact)
-        actionButton(
-          tooltip: 'Settings (Cmd+,)',
-          icon: const Icon(Symbols.settings, size: 18),
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => const SettingsPage())),
-        ),
-      const SizedBox(width: 4),
-    ];
     final tabStrip = Expanded(
       child: DragTarget<_TabDragData>(
         onWillAcceptWithDetails: (details) => details.data.tabId.isNotEmpty,
@@ -604,8 +521,8 @@ class _WorkspaceTabBar extends ConsumerWidget {
               padding: EdgeInsets.only(
                 top: _vertical ? _verticalTabStripTopMargin : 0,
                 // Tab entry itself owns extra 4px
-                left: 6,
-                right: 6,
+                left: 4,
+                right: 4,
               ),
               itemCount: workspace.tabs.length + 1,
               itemBuilder: (context, index) {
@@ -648,29 +565,15 @@ class _WorkspaceTabBar extends ConsumerWidget {
         },
       ),
     );
-    final actionContent = SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(mainAxisSize: MainAxisSize.min, children: actions),
-    );
-    final actionBar = SizedBox(
-      height: height,
-      child: evenlySpaced
-          ? Row(mainAxisSize: MainAxisSize.max, children: actions)
-          : _vertical && compact
-          ? Center(child: actionContent)
-          : actionContent,
-    );
     final layout = Flex(
       direction: _vertical ? Axis.vertical : Axis.horizontal,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [tabStrip, actionBar],
+      children: [tabStrip],
     );
 
     return Material(
       key: const ValueKey('workspace-tab-bar'),
-      color: hasBackgroundImage
-          ? scheme.surfaceContainer.withValues(alpha: 0.64)
-          : scheme.surfaceContainer,
+      color: scheme.surfaceContainer,
       child: SizedBox(
         width: _vertical ? (width ?? _workspaceTabBarWidth) : null,
         height: _vertical ? null : height,
@@ -715,7 +618,7 @@ class _WorkspaceTabEntry extends StatelessWidget {
     final panes = tab.panes.values.toList();
     if (panes.length < 2) {
       return Padding(
-        padding: EdgeInsets.only(left: 4, right: 4, top: verticalPadding),
+        padding: EdgeInsets.only(left: 3, right: 3, top: verticalPadding),
         child: _PaneTabChip(
           key: ValueKey('pane-tab-${panes.first.tab.id}'),
           tab: panes.first.tab,
@@ -729,7 +632,7 @@ class _WorkspaceTabEntry extends StatelessWidget {
       );
     }
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 4, vertical: verticalPadding),
+      padding: EdgeInsets.symmetric(horizontal: 3, vertical: verticalPadding),
       child: _MergedPaneTabPill(
         panes: panes,
         selectedPaneId: selected ? tab.focusedPaneId : null,
@@ -920,7 +823,7 @@ class _PaneTabContent extends StatelessWidget {
     return Align(
       alignment: compact ? Alignment.center : Alignment.centerLeft,
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 16),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 10),
         child: Row(
           mainAxisSize: compact
               ? MainAxisSize.min

@@ -135,6 +135,23 @@ class SettingsPage extends ConsumerWidget {
                     child: _TabBarPositionPicker(settings: data),
                   ),
                   _SettingsSection(
+                    title: 'Title bar',
+                    description:
+                        'Window chrome for platforms without a system menu bar.',
+                    child: SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Show menu button'),
+                      subtitle: const Text(
+                        'Shows the app menu at the top-left of the title bar '
+                        'and centers the title',
+                      ),
+                      value: data.showTitleBarMenuButton,
+                      onChanged: (v) => ref
+                          .read(terminalSettingsProvider.notifier)
+                          .setShowTitleBarMenuButton(v),
+                    ),
+                  ),
+                  _SettingsSection(
                     title: 'Pane margins',
                     description: 'Set independent margins for normal output and terminal UIs that paint almost the full grid.',
                     child: _PaneMarginSettings(

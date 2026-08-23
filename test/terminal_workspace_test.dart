@@ -148,8 +148,12 @@ void main() {
     await tester.pumpWidget(buildWorkspace());
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Split right'), findsOneWidget);
-    expect(find.byTooltip('Settings (Cmd+,)'), findsOneWidget);
+    // The top bar never compacts: every chip keeps its close button.
+    expect(
+      tester.getSize(find.byKey(const ValueKey('workspace-tab-bar'))).height,
+      40,
+    );
+    expect(find.byTooltip('Close tab'), findsWidgets);
     expect(find.byTooltip('Collapse tab bar'), findsNothing);
   });
 
@@ -169,7 +173,8 @@ void main() {
       tester.element(find.byType(TerminalWorkspacePage)),
     );
     expect(tester.getSize(tabBar), const Size(240, 640));
-    expect(find.byTooltip('Split right'), findsOneWidget);
+    // Non-compact: chips render titles with close buttons.
+    expect(find.byTooltip('Close tab'), findsWidgets);
 
     await tester.drag(
       find.byKey(const ValueKey('tab-bar-resize-handle')),
@@ -179,9 +184,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(tester.getSize(tabBar), const Size(48, 640));
-    expect(find.byTooltip('Split right'), findsNothing);
-    expect(find.byTooltip('Settings (Cmd+,)'), findsNothing);
-    expect(find.byTooltip('New tab'), findsOneWidget);
+    // Compact: chips collapse to icon-only, close buttons hidden.
+    expect(find.byTooltip('Close tab'), findsNothing);
     container.read(terminalWorkspaceProvider.notifier).openTerminal();
     await tester.pumpAndSettle();
 
@@ -202,7 +206,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.getSize(tabBar).width, greaterThan(48));
-    expect(find.byTooltip('Split right'), findsOneWidget);
+    expect(find.byTooltip('Close tab'), findsWidgets);
   });
 
   testWidgets('resizes the vertical tab bar sidebar', (tester) async {
@@ -514,4 +518,5 @@ void main() {
     expect(find.byType(maidterm.TerminalView), findsNothing);
     expect(find.text('New Terminal'), findsOneWidget);
   });
+
 }

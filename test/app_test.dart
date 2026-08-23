@@ -1,28 +1,34 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:maidterm_app/app.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:maidterm_app/workspace/terminal_workspace.dart';
 import 'package:maidterm_app/shell/local_shell_session.dart';
 
 import 'package:maidterm_app/workspace/terminal_workspace_page.dart';
+import 'package:maidterm_app/settings/settings_page.dart';
 
 void main() {
-  testWidgets('command comma opens settings', (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          localShellSessionFactoryProvider.overrideWithValue(
-            ({String? workingDirectory}) => LocalShellSession(
-              workingDirectory: workingDirectory,
-              autoStart: false,
-            ),
+  Widget app() {
+    return ProviderScope(
+      overrides: [
+        localShellSessionFactoryProvider.overrideWithValue(
+          ({String? workingDirectory}) => LocalShellSession(
+            workingDirectory: workingDirectory,
+            autoStart: false,
           ),
-        ],
-        child: const MaidTermApp(),
-      ),
+        ),
+      ],
+      child: const MaidTermApp(),
     );
+  }
+
+  testWidgets('command comma opens settings', (tester) async {
+    await tester.pumpWidget(app());
     await tester.pumpAndSettle();
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
@@ -31,23 +37,13 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('Settings'), findsOneWidget);
+    // The frame title also reads "Settings" while the route is open; assert
+    // on the page itself.
+    expect(find.byType(SettingsPage), findsOneWidget);
   });
 
   testWidgets('terminal shortcuts manage tabs and panes', (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          localShellSessionFactoryProvider.overrideWithValue(
-            ({String? workingDirectory}) => LocalShellSession(
-              workingDirectory: workingDirectory,
-              autoStart: false,
-            ),
-          ),
-        ],
-        child: const MaidTermApp(),
-      ),
-    );
+    await tester.pumpWidget(app());
     await tester.pumpAndSettle();
 
     Future<void> press(LogicalKeyboardKey key, {bool shift = false}) async {
@@ -75,5 +71,32 @@ void main() {
 
     await press(LogicalKeyboardKey.keyW);
     expect(container.read(terminalWorkspaceProvider).tabs, hasLength(1));
+  });
+
+  testWidgets('title bar menu opens and acts on the workspace', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'terminal.showTitleBarMenuButton': true,
+    });
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    // The burger renders above the app routes and its popup has an Overlay
+    // (regression: title-bar chrome previously had neither Overlay nor
+    // Navigator ancestor).
+    expect(find.byIcon(Symbols.menu), findsOneWidget);
+
+    await tester.tap(find.byIcon(Symbols.menu));
+    // Let the popup entrance animation complete before settling.
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(find.text('New Tab'), findsOneWidget);
+
+    await tester.tap(find.text('New Tab'));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
+    expect(container.read(terminalWorkspaceProvider).tabs, hasLength(2));
   });
 }

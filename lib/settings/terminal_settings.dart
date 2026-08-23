@@ -30,6 +30,7 @@ class TerminalSettings {
     this.seedColor = const Color(0xFF0F766E),
     this.tabBarPosition = TabBarPosition.top,
     this.tabBarWidth = 180.0,
+    this.showTitleBarMenuButton = false,
   });
 
   final double fontSize;
@@ -66,6 +67,9 @@ class TerminalSettings {
 
   /// Width of left/right tab bars in logical pixels.
   final double tabBarWidth;
+  /// Shows the app menu at the top-left of the title bar and centers the
+  /// title. Meant for platforms without a system menu bar.
+  final bool showTitleBarMenuButton;
 
   TerminalSettings copyWith({
     double? fontSize,
@@ -82,6 +86,7 @@ class TerminalSettings {
     Color? seedColor,
     TabBarPosition? tabBarPosition,
     double? tabBarWidth,
+    bool? showTitleBarMenuButton,
   }) => TerminalSettings(
     fontSize: fontSize ?? this.fontSize,
     cursorBlink: cursorBlink ?? this.cursorBlink,
@@ -97,6 +102,7 @@ class TerminalSettings {
     seedColor: seedColor ?? this.seedColor,
     tabBarPosition: tabBarPosition ?? this.tabBarPosition,
     tabBarWidth: tabBarWidth ?? this.tabBarWidth,
+    showTitleBarMenuButton: showTitleBarMenuButton ?? this.showTitleBarMenuButton,
   );
 }
 
@@ -120,6 +126,7 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
   static const _themeModeKey = 'app.themeMode';
   static const _seedColorKey = 'app.seedColor';
   static const _tabBarPositionKey = 'terminal.tabBarPosition';
+  static const _showTitleBarMenuButtonKey = 'terminal.showTitleBarMenuButton';
 
   @override
   Future<TerminalSettings> build() async {
@@ -165,6 +172,8 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
         'right' => TabBarPosition.right,
         _ => TabBarPosition.top,
       },
+      showTitleBarMenuButton:
+          prefs.getBool(_showTitleBarMenuButtonKey) ?? false,
     );
   }
 
@@ -261,6 +270,11 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
     await _update(state.value!.copyWith(tabBarPosition: value));
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tabBarPositionKey, value.name);
+  }
+  Future<void> setShowTitleBarMenuButton(bool value) async {
+    await _update(state.value!.copyWith(showTitleBarMenuButton: value));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_showTitleBarMenuButtonKey, value);
   }
 }
 

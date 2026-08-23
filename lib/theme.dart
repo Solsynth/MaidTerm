@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart' as flutter;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'
@@ -38,13 +40,23 @@ ThemeData createMaidTermTheme(Brightness brightness, {Color? seedColor}) {
 /// looks like a different app. This mirrors MaidKit's
 /// `MaidKitWindowScaffold`.
 class MaidTermWindowScaffold extends StatelessWidget {
-  const MaidTermWindowScaffold({super.key, required this.child, this.title});
+  const MaidTermWindowScaffold({
+    super.key,
+    required this.child,
+    this.title,
+    this.menuButton,
+  });
 
   final Widget child;
   final String? title;
 
+  /// Optional leading menu button shown in the title bar. When present the
+  /// title text is centered instead of left-aligned.
+  final Widget? menuButton;
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return flutter.Theme(
       data: _createWindowFrameTheme(Theme.of(context)),
       child: flutter.Localizations.override(
@@ -66,13 +78,42 @@ class MaidTermWindowScaffold extends StatelessWidget {
             // NOTE: island's macOS title bar renders only the title and
             // ignores additionalTitleBarActions; app actions live in the
             // toolbar row inside the workspace instead.
-            title: Text(
-              title ?? 'MaidTerm',
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
+            title: _buildTitle(theme),
             child: child,
           ),
         ),
+      ),
+    );
+  }
+
+  /// The title-bar content: a plain label, or — when [menuButton] is set —
+  /// the label centered over a full-width bar with the button at the leading
+  /// edge. The full-width layout is required because island's macOS frame
+  /// centers whatever widget is passed as the title.
+  Widget _buildTitle(ThemeData theme) {
+    final text = Text(
+      title ?? 'MaidTerm',
+      style: theme.textTheme.labelLarge,
+    );
+    final button = menuButton;
+    if (button == null) return text;
+    return SizedBox(
+      width: double.infinity,
+      height: 32,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(child: text),
+          Align(
+            alignment: Alignment.centerLeft,
+            // macOS traffic lights float over the leading ~70px of the
+            // hidden title bar; keep the menu button clear of them.
+            child: Padding(
+              padding: EdgeInsets.only(left: Platform.isMacOS ? 76 : 0),
+              child: button,
+            ),
+          ),
+        ],
       ),
     );
   }
