@@ -59,6 +59,23 @@ int _preeditCellWidth(int cp) {
   return isCjkCodepoint(cp) || _isWideEmojiCodepoint(cp) ? 2 : 1;
 }
 
+/// Effective column span for a terminal cell.
+///
+/// The engine marks a cell `.wide` (with a spacer tail cell) for genuine
+/// two-column codepoints. Emoji that default to text presentation but are
+/// promoted to emoji by U+FE0F (VS16) — `ℹ️`, `❤️`, `™️`, … — are also two
+/// columns wide, but libghostty stores the VS16 grapheme without promoting
+/// the cell to `.wide`, so it reports `.narrow` and emits no spacer tail.
+/// Detect that so the renderer reserves both columns instead of squeezing
+/// the glyph into one.
+int _cellSpan(CellIterator cell) {
+  if (cell.wide == .wide) return 2;
+  if (cell.wide == .narrow && cell.graphemeLength > 1) {
+    return cell.content.contains('\uFE0F') ? 2 : 1;
+  }
+  return 1;
+}
+
 int _resolveColorArgb(
   TerminalPaintState state,
   CellColor color, {
@@ -463,7 +480,9 @@ final class _CursorFrameBuilder {
       codepoint: runes.first,
       graphemeLength: runes.length,
       style: style,
-      span: cell.wide ? 2 : 1,
+      span: cell.wide || (runes.length > 1 && cell.content.contains('\uFE0F'))
+          ? 2
+          : 1,
     );
   }
 }
@@ -1386,7 +1405,7 @@ final class _TerminalRowBuilder {
       row.preeditEmitted = true;
     }
 
-    if (span == 2) cell.next();
+    if (span == 2 && cell.wide == .wide) cell.next();
     row.advance(span, _frame.cellWidth);
   }
 
@@ -1407,7 +1426,7 @@ final class _TerminalRowBuilder {
 
   void _writeCell(CellIterator cell) {
     final row = _row;
-    final span = cell.wide == .wide ? 2 : 1;
+    final span = _cellSpan(cell);
     final preedit = _preeditRange;
     if (preedit != null && preedit.overlaps(row.row, row.col, span)) {
       _skipPreeditCell(cell, preedit, span);
@@ -1456,7 +1475,10 @@ final class _TerminalRowBuilder {
 
     if (span == 2) {
       _closeBackgroundSpan(row, span);
-      cell.next();
+      // A `.wide` lead cell is followed by a spacer tail cell; consume it.
+      // VS16-promoted emoji are reported `.narrow` here and have no spacer
+      // tail, so advancing would consume the next real cell instead.
+      if (cell.wide == .wide) cell.next();
     }
     row.advance(span, _frame.cellWidth);
   }
