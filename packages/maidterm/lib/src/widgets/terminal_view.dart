@@ -332,7 +332,8 @@ class TerminalViewState extends State<TerminalView> {
                     visibleRows: _visibleRows,
                     settings: widget.gestureSettings,
                     scrollController: _scrollController,
-                    onLinkActivate: widget.linkSettings.onActivate,
+                    onLinkActivate: (link) =>
+                        widget.linkSettings.activationFor(link)?.call(link),
                     child: Scrollable(
                       controller: _scrollController,
                       physics: widget.scrollPhysics,

@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart' show internal;
 import 'package:libghostty/libghostty.dart' show Position, Terminal;
 
-import '../foundation/cell_range.dart';
-import 'link_match.dart';
-import 'link_settings.dart';
-import 'link_snapshot.dart';
-import 'osc8_link_detector.dart';
-import 'terminal_logical_line.dart';
-import 'text_link_detector.dart';
+import 'package:maidterm/src/foundation/cell_range.dart';
+import 'package:maidterm/src/links/link_match.dart';
+import 'package:maidterm/src/links/link_settings.dart';
+import 'package:maidterm/src/links/link_snapshot.dart';
+import 'package:maidterm/src/links/osc8_link_detector.dart';
+import 'package:maidterm/src/links/terminal_logical_line.dart';
+import 'package:maidterm/src/links/text_link_detector.dart';
 
 /// Resolves links from the visible terminal viewport.
 ///
@@ -35,8 +35,11 @@ final class LinkResolver {
     );
   }
 
-  /// Returns the top link at [position], if one exists.
-  ActivatedLink? linkAt(
+  /// Returns the top link match at [position], if one exists.
+  ///
+  /// The match carries rule-specific styling so hover rendering can apply
+  /// per-rule visual effects without a second lookup.
+  LinkMatch? linkAt(
     Terminal terminal,
     Position position,
     LinkSettings settings, {
@@ -56,7 +59,7 @@ final class LinkResolver {
 
     final matches = _matches([line], settings, cwd: cwd);
     for (final match in matches) {
-      if (match.contains(position)) return match.link;
+      if (match.contains(position)) return match;
     }
     return null;
   }

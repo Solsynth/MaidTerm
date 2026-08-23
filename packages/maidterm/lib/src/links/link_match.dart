@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart' show immutable, internal;
 import 'package:libghostty/libghostty.dart' show Position;
-
-import 'link_settings.dart';
+import 'package:maidterm/src/foundation/terminal_theme.dart'
+    show HyperlinkStyle;
+import 'package:maidterm/src/links/link_settings.dart';
 
 /// A detected link candidate before overlap resolution.
 ///
@@ -19,15 +20,30 @@ final class LinkMatch {
   final int sourceOrder;
   final ActivatedLink link;
 
+  /// Rule-specific idle styling, when the producing rule defines one.
+  final HyperlinkStyle? idleStyle;
+
+  /// Rule-specific highlighted styling, when the producing rule defines one.
+  final HyperlinkStyle? highlightedStyle;
+
   const LinkMatch({
     required this.link,
     required this.priority,
     required this.hoverOnly,
     required this.sourceOrder,
+    this.idleStyle,
+    this.highlightedStyle,
   });
 
   @override
-  int get hashCode => Object.hash(priority, hoverOnly, sourceOrder, link);
+  int get hashCode => Object.hash(
+    priority,
+    hoverOnly,
+    sourceOrder,
+    link,
+    idleStyle,
+    highlightedStyle,
+  );
 
   int get length => link.range.sortLength;
 
@@ -38,7 +54,9 @@ final class LinkMatch {
           priority == other.priority &&
           hoverOnly == other.hoverOnly &&
           sourceOrder == other.sourceOrder &&
-          link == other.link;
+          link == other.link &&
+          idleStyle == other.idleStyle &&
+          highlightedStyle == other.highlightedStyle;
 
   bool contains(Position position) => link.range.contains(position);
 

@@ -3,11 +3,12 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart' show Offset;
 import 'package:libghostty/libghostty.dart' show Mods, Position, Terminal;
 
-import '../foundation.dart';
-import '../links/activation_policy.dart';
-import '../links/link_resolver.dart';
-import '../links/link_settings.dart';
-import '../links/link_snapshot.dart';
+import 'package:maidterm/src/foundation.dart';
+import 'package:maidterm/src/links/activation_policy.dart';
+import 'package:maidterm/src/links/link_match.dart';
+import 'package:maidterm/src/links/link_resolver.dart';
+import 'package:maidterm/src/links/link_settings.dart';
+import 'package:maidterm/src/links/link_snapshot.dart';
 
 /// Immutable inputs needed to resolve links for one terminal viewport.
 @internal
@@ -54,6 +55,7 @@ final class LinkInteraction {
   Offset? _lastHoverPosition;
   Position? _lastHoverCell;
   CellRange? _highlighted;
+  LinkMatch? _hoverMatch;
   _LinkPressCandidate? _pressCandidate;
 
   LinkInteraction({LinkResolver? resolver})
@@ -94,10 +96,10 @@ final class LinkInteraction {
     if (!_canActivate(pointerKind, virtualMods)) return false;
 
     final cell = metrics.cellAt(localPosition);
-    final link = _linkAt(cell);
-    if (link == null) return false;
+    final match = _linkAt(cell);
+    if (match == null) return false;
 
-    _pressCandidate = _LinkPressCandidate(cell, link);
+    _pressCandidate = _LinkPressCandidate(cell, match.link);
     return true;
   }
 
@@ -181,8 +183,9 @@ final class LinkInteraction {
     if (_needsIdleSnapshot()) {
       return _idleSnapshotFor(context).withHighlighted(_highlighted);
     }
-    final range = _highlighted;
-    return range == null ? .empty : .highlighted(range);
+    final match = _hoverMatch;
+    if (match == null) return .empty;
+    return LinkSnapshot([match], highlighted: match.link.range);
   }
 
   bool _canActivate(PointerDeviceKind pointerKind, Mods virtualMods) {
@@ -197,6 +200,7 @@ final class LinkInteraction {
 
   void _clearHoverHit() {
     _lastHoverCell = null;
+    _hoverMatch = null;
     if (_highlighted == null) return;
     _highlighted = null;
     _snapshot = null;
@@ -210,10 +214,12 @@ final class LinkInteraction {
   bool _hasIdleVisualEffect() {
     return _idleStyle.underline != .none ||
         _idleStyle.underlineColor != null ||
-        _idleStyle.textColor != null;
+        _idleStyle.textColor != null ||
+        _idleStyle.outlineColor != null ||
+        _idleStyle.backgroundColor != null;
   }
 
-  ActivatedLink? _linkAt(Position cell) {
+  LinkMatch? _linkAt(Position cell) {
     final context = _context;
     if (context == null || !context.hasViewport) return null;
     if (cell.row < 0 ||
@@ -245,11 +251,12 @@ final class LinkInteraction {
     final cell = metrics.cellAt(localPosition);
     if (cell == _lastHoverCell) return _highlighted;
 
-    final link = _linkAt(cell);
+    final match = _linkAt(cell);
     _lastHoverCell = cell;
-    final nextRange = link?.range;
+    final nextRange = match?.link.range;
     if (nextRange == _highlighted) return _highlighted;
 
+    _hoverMatch = match;
     _highlighted = nextRange;
     _snapshot = null;
     return _highlighted;
@@ -270,18 +277,32 @@ final class LinkInteraction {
   }
 
   bool _needsIdleSnapshot() {
-    if (!_hasIdleVisualEffect()) return false;
-    final Set<LinkType> types = _settings.types;
-    if (types.contains(LinkType.osc8) || types.contains(LinkType.text)) {
-      return true;
+    final types = _settings.types;
+    if (_hasIdleVisualEffect()) {
+      if (types.contains(LinkType.osc8) || types.contains(LinkType.text)) {
+        return true;
+      }
+      if (!types.contains(LinkType.custom)) return false;
+      return _settings.rules.any((rule) => rule.highlightMode == .always);
     }
     if (!types.contains(LinkType.custom)) return false;
-    return _settings.rules.any((rule) => rule.highlightMode == .always);
+    return _settings.rules.any(
+      (rule) =>
+          rule.highlightMode == .always && _styleHasEffect(rule.idleStyle),
+    );
+  }
+
+  bool _styleHasEffect(HyperlinkStyle? style) {
+    return style != null &&
+        (style.underline != .none ||
+            style.underlineColor != null ||
+            style.textColor != null ||
+            style.outlineColor != null ||
+            style.backgroundColor != null);
   }
 
   bool _sameGestureSettings(LinkSettings a, LinkSettings b) {
-    return a.modifier == b.modifier &&
-        (a.onActivate != null) == (b.onActivate != null);
+    return a.modifier == b.modifier && a.hasActivation == b.hasActivation;
   }
 
   bool _sameMatchSettings(LinkSettings a, LinkSettings b) {

@@ -3,7 +3,7 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart' show HardwareKeyboard;
 import 'package:libghostty/libghostty.dart' show Mods;
 
-import 'link_settings.dart';
+import 'package:maidterm/src/links/link_settings.dart';
 
 /// Whether the current pointer and keyboard state can activate a link.
 @internal
@@ -12,7 +12,7 @@ bool canActivateLink({
   required Mods virtualMods,
   PointerDeviceKind? pointerKind,
 }) {
-  if (settings.types.isEmpty || settings.onActivate == null) return false;
+  if (settings.types.isEmpty || !settings.hasActivation) return false;
   if (pointerKind != null && pointerKind != .mouse) return true;
 
   final keyboard = HardwareKeyboard.instance;

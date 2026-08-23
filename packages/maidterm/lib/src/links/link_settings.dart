@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
-
-import '../foundation/cell_range.dart';
-import 'activation_modifier.dart';
+import 'package:maidterm/src/foundation/cell_range.dart';
+import 'package:maidterm/src/foundation/terminal_theme.dart'
+    show HyperlinkStyle;
+import 'package:maidterm/src/links/activation_modifier.dart';
 
 /// Data reported when a terminal link is activated.
 @immutable
@@ -143,11 +144,31 @@ final class LinkRule {
   /// idle styling.
   final LinkHighlightMode highlightMode;
 
+  /// Visual effect applied to matches outside hover.
+  ///
+  /// When null, the theme's idle hyperlink style is used. Matches only
+  /// render this when [highlightMode] is [LinkHighlightMode.always].
+  final HyperlinkStyle? idleStyle;
+
+  /// Visual effect applied to matches under the pointer.
+  ///
+  /// When null, the theme's highlighted hyperlink style is used.
+  final HyperlinkStyle? highlightedStyle;
+
+  /// Per-rule activation callback.
+  ///
+  /// When set, this overrides [LinkSettings.onActivate] for links produced
+  /// by this rule, letting one rule set open URLs while another opens files.
+  final ValueChanged<ActivatedLink>? onActivate;
+
   const factory LinkRule.regex({
     required String id,
     required RegExp pattern,
     int priority,
     LinkHighlightMode highlightMode,
+    HyperlinkStyle? idleStyle,
+    HyperlinkStyle? highlightedStyle,
+    ValueChanged<ActivatedLink>? onActivate,
   }) = LinkRule._regex;
 
   const LinkRule._regex({
@@ -155,6 +176,9 @@ final class LinkRule {
     required this.pattern,
     this.priority = 0,
     this.highlightMode = .hover,
+    this.idleStyle,
+    this.highlightedStyle,
+    this.onActivate,
   });
 
   @override
@@ -167,6 +191,8 @@ final class LinkRule {
     pattern.isDotAll,
     priority,
     highlightMode,
+    idleStyle,
+    highlightedStyle,
   );
 
   @override
@@ -180,7 +206,9 @@ final class LinkRule {
           pattern.isUnicode == other.pattern.isUnicode &&
           pattern.isDotAll == other.pattern.isDotAll &&
           priority == other.priority &&
-          highlightMode == other.highlightMode;
+          highlightMode == other.highlightMode &&
+          idleStyle == other.idleStyle &&
+          highlightedStyle == other.highlightedStyle;
 }
 
 /// Link detection, styling, and pointer handling configuration.
@@ -215,6 +243,28 @@ final class LinkSettings {
     this.rules = const [],
     this.onActivate,
   });
+
+  /// Whether any link activation can fire.
+  ///
+  /// True when a global callback is set or any rule carries its own
+  /// [LinkRule.onActivate]. Pointer activation is disabled entirely when
+  /// this is false.
+  bool get hasActivation => onActivate != null || rules.any((r) => r.onActivate != null);
+
+  /// Returns the activation callback for [link].
+  ///
+  /// Custom links route to their rule's [LinkRule.onActivate] when one is
+  /// set, otherwise they fall back to the global [onActivate].
+  ValueChanged<ActivatedLink>? activationFor(ActivatedLink link) {
+    if (link.type == LinkType.custom && link.id != null) {
+      for (final rule in rules) {
+        if (rule.id == link.id && rule.onActivate != null) {
+          return rule.onActivate;
+        }
+      }
+    }
+    return onActivate;
+  }
 
   @override
   int get hashCode => Object.hash(

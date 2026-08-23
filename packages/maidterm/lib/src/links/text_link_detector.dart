@@ -1,10 +1,11 @@
 import 'package:flutter/foundation.dart' show internal;
-
-import 'link_match.dart';
-import 'link_path_resolver.dart';
-import 'link_settings.dart';
-import 'terminal_logical_line.dart';
-import 'text_link_patterns.dart';
+import 'package:maidterm/src/foundation/terminal_theme.dart'
+    show HyperlinkStyle;
+import 'package:maidterm/src/links/link_match.dart';
+import 'package:maidterm/src/links/link_path_resolver.dart';
+import 'package:maidterm/src/links/link_settings.dart';
+import 'package:maidterm/src/links/terminal_logical_line.dart';
+import 'package:maidterm/src/links/text_link_patterns.dart';
 
 /// Detects built-in text links and user-defined regex links.
 ///
@@ -77,6 +78,8 @@ final class TextLinkDetector {
             for (var i = 1; i <= match.groupCount; i++) match.group(i),
           ],
           hoverOnly: rule.highlightMode == .hover,
+          idleStyle: rule.idleStyle,
+          highlightedStyle: rule.highlightedStyle,
         );
       }
     }
@@ -94,12 +97,16 @@ final class TextLinkDetector {
     LinkedFile? file,
     List<String?> captureGroups = const [],
     bool hoverOnly = false,
+    HyperlinkStyle? idleStyle,
+    HyperlinkStyle? highlightedStyle,
   }) {
     final text = line.text.substring(start, end);
     return LinkMatch(
       priority: priority,
       sourceOrder: sourceOrder,
       hoverOnly: hoverOnly,
+      idleStyle: idleStyle,
+      highlightedStyle: highlightedStyle,
       link: ActivatedLink(
         type: type,
         id: id,

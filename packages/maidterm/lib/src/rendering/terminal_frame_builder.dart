@@ -2,8 +2,10 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show internal;
 import 'package:libghostty/libghostty.dart';
 
+import '../foundation/cell_range.dart';
 import '../foundation/dynamic_color.dart';
 import '../foundation/terminal_theme.dart';
 import '../links/link_snapshot.dart';
@@ -1161,6 +1163,7 @@ final class _TerminalRowBuilder {
 
     _foreground.flush(_row);
     _finishBackgroundRun(_row);
+    _emitLinkOutline(rowIndex);
     _sprites.endRow();
   }
 
@@ -1242,6 +1245,91 @@ final class _TerminalRowBuilder {
         right,
         overY + _frame.underlineThickness,
         row.foreground,
+      );
+    }
+  }
+
+  /// Draws the highlighted link's background fill on this row, if any.
+  ///
+  /// Soft-wrapped links span multiple terminal rows; each row paints the
+  /// segment of the range that falls on it. A filled rect spans that segment
+  /// behind the text when the highlighted style sets
+  /// [HyperlinkStyle.backgroundColor]. The border outline from
+  /// [HyperlinkStyle.outlineColor] is drawn on top of the text when set:
+  /// top/bottom edges only on the range's first/last row, left/right edges
+  /// only where the range starts/ends within a row.
+  void _emitLinkOutline(int rowIndex) {
+    if (!_hasLinks) return;
+    final range = linkSnapshot.highlighted;
+    if (range == null) return;
+    if (rowIndex < range.start.row || rowIndex > range.end.row) return;
+
+    final style =
+        linkSnapshot.styleAt(range.start, highlighted: true) ??
+        _state.theme.hyperlink.highlighted;
+    final row = _row;
+    final cellWidth = _frame.cellWidth;
+    final cols = _frame.cols;
+
+    // The range's intersection with this row. Rows between the wrapped
+    // range's first and last row span the full grid width.
+    final segment = LinkRowSegment.resolve(range, rowIndex, cols: cols);
+    final firstRow = rowIndex == range.start.row;
+    final lastRow = rowIndex == range.end.row;
+    final startX = segment.startCol * cellWidth;
+    final endX = (segment.endCol + 1) * cellWidth;
+
+    final backgroundColor = style.backgroundColor;
+    if (backgroundColor != null) {
+      _sprites.background.add(
+        startX,
+        row.rowY,
+        endX,
+        row.rowBottom,
+        backgroundColor.toARGB32(),
+      );
+    }
+
+    final outlineColor = style.outlineColor;
+    if (outlineColor == null) return;
+    final thickness = math.max(1.0, _frame.cellHeight * 0.04);
+    final argb = outlineColor.toARGB32();
+
+    if (firstRow) {
+      _sprites.decoration.add(
+        startX,
+        row.rowY,
+        endX,
+        row.rowY + thickness,
+        argb,
+      );
+    }
+    if (lastRow) {
+      _sprites.decoration.add(
+        startX,
+        row.rowBottom - thickness,
+        endX,
+        row.rowBottom,
+        argb,
+      );
+    }
+    // Vertical edges only where the wrapped range actually begins or ends.
+    if (firstRow) {
+      _sprites.decoration.add(
+        startX,
+        row.rowY,
+        startX + thickness,
+        row.rowBottom,
+        argb,
+      );
+    }
+    if (lastRow) {
+      _sprites.decoration.add(
+        endX - thickness,
+        row.rowY,
+        endX,
+        row.rowBottom,
+        argb,
       );
     }
   }
@@ -1332,10 +1420,12 @@ final class _TerminalRowBuilder {
       linkStyle = null;
     } else {
       final position = Position(row: row.row, col: row.col);
-      linkStyle = linkSnapshot.isHighlighted(position)
-          ? _state.theme.hyperlink.highlighted
-          : linkSnapshot.contains(position)
-          ? _state.theme.hyperlink.idle
+      final isHighlighted = linkSnapshot.isHighlighted(position);
+      linkStyle = isHighlighted || linkSnapshot.contains(position)
+          ? linkSnapshot.styleAt(position, highlighted: isHighlighted) ??
+                (isHighlighted
+                    ? _state.theme.hyperlink.highlighted
+                    : _state.theme.hyperlink.idle)
           : null;
     }
     final backgroundArgb = cell.hasText ? null : cell.backgroundArgb;
@@ -1369,5 +1459,37 @@ final class _TerminalRowBuilder {
       cell.next();
     }
     row.advance(span, _frame.cellWidth);
+  }
+}
+
+/// The part of a link range that falls on one terminal row.
+///
+/// Soft-wrapped links span multiple rows. The first row of the range starts
+/// at [CellRange.start] and runs to the end of the grid; the last row runs
+/// from the grid start to [CellRange.end]; rows in between span the full
+/// grid width.
+@internal
+final class LinkRowSegment {
+  final int startCol;
+  final int endCol;
+
+  const LinkRowSegment(this.startCol, this.endCol);
+
+  /// Resolves the intersection of [range] with [rowIndex] in a grid of
+  /// [cols] columns.
+  ///
+  /// [rowIndex] must fall within [range]'s rows.
+  static LinkRowSegment resolve(CellRange range, int rowIndex,
+      {required int cols}) {
+    if (rowIndex < range.start.row || rowIndex > range.end.row) {
+      throw StateError('row $rowIndex outside range ${range.start.row}-'
+          '${range.end.row}');
+    }
+    final firstRow = rowIndex == range.start.row;
+    final lastRow = rowIndex == range.end.row;
+    return LinkRowSegment(
+      firstRow ? range.start.col : 0,
+      lastRow ? range.end.col : cols - 1,
+    );
   }
 }

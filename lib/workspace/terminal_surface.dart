@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
@@ -37,6 +39,15 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
     if (mounted) setState(() {});
   }
 
+  void _requestFocusAfterBuild() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.autofocus) {
+        _focusNode.requestFocus();
+        widget.tab.session.controller.requestFocus();
+      }
+    });
+  }
+
   @override
   void didUpdateWidget(TerminalSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -46,13 +57,34 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
     }
   }
 
-  void _requestFocusAfterBuild() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.autofocus) {
-        _focusNode.requestFocus();
-        widget.tab.session.controller.requestFocus();
+  /// Opens a detected link with the platform default handler.
+  ///
+  /// URIs open in the browser; file paths open with the OS file association
+  /// (e.g. `open` on macOS, `xdg-open` on Linux, `start` on Windows).
+  void _handleLinkActivate(maidterm.ActivatedLink link) {
+    final uri = link.uri;
+    if (uri != null) {
+      _openExternal(uri.toString());
+      return;
+    }
+    final file = link.file;
+    if (file != null) {
+      _openExternal(file.resolvedPath ?? file.path);
+    }
+  }
+
+  Future<void> _openExternal(String target) async {
+    try {
+      if (Platform.isMacOS) {
+        await Process.run('open', [target]);
+      } else if (Platform.isWindows) {
+        await Process.run('cmd', ['/c', 'start', '', target]);
+      } else {
+        await Process.run('xdg-open', [target]);
       }
-    });
+    } on Exception catch (e) {
+      debugPrint('Failed to open link "$target": $e');
+    }
   }
 
   @override
@@ -110,6 +142,15 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
           selection: maidterm.SelectionTheme(
             background: maidterm.DynamicColor.fixed(scheme.selection),
           ),
+          hyperlink: maidterm.HyperlinkTheme(
+            idle: maidterm.HyperlinkStyle(underline: .single),
+            highlighted: maidterm.HyperlinkStyle(
+              underline: .single,
+              backgroundColor: scheme.ansiColors.length > 4
+                  ? scheme.ansiColors[4].withValues(alpha: 0.25)
+                  : scheme.selection.withValues(alpha: 0.35),
+            ),
+          ),
           cursorMotionDuration: const Duration(milliseconds: 90),
           fontFamily: fontFamily,
           fontSize: settings?.fontSize ?? 14.0,
@@ -125,6 +166,7 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
         theme: buildTheme(fullScreen),
         autofocus: true,
         padding: fullScreen ? fullScreenMargin : normalMargin,
+        linkSettings: maidterm.LinkSettings(onActivate: _handleLinkActivate),
         onVisualFullScreenChanged: widget.tab.session.setVisualFullScreen,
       ),
     );

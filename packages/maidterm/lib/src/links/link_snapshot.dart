@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart' show immutable, internal, listEquals;
 import 'package:libghostty/libghostty.dart' show Position;
-
-import '../foundation/cell_range.dart';
-import 'link_match.dart';
+import 'package:maidterm/src/foundation/cell_range.dart';
+import 'package:maidterm/src/foundation/terminal_theme.dart'
+    show HyperlinkStyle;
+import 'package:maidterm/src/links/link_match.dart';
 
 /// Link styling state for the visible viewport.
 @internal
@@ -43,6 +44,23 @@ final class LinkSnapshot {
     if (!range.contains(position)) return false;
     if (matches.isEmpty) return true;
     return matches.any((match) => match.contains(position));
+  }
+
+  /// Rule-specific style for [position], or null to use the theme default.
+  ///
+  /// [highlighted] selects the highlighted (hover) style; otherwise the idle
+  /// style is returned. Hover-only matches never report an idle style.
+  HyperlinkStyle? styleAt(Position position, {required bool highlighted}) {
+    for (final match in matches) {
+      if (!match.contains(position)) continue;
+      if (highlighted) {
+        if (match.highlightedStyle != null) return match.highlightedStyle;
+        continue;
+      }
+      if (match.hoverOnly) continue;
+      if (match.idleStyle != null) return match.idleStyle;
+    }
+    return null;
   }
 
   /// Returns this snapshot with a different highlighted range.

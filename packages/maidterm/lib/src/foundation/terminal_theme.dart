@@ -148,26 +148,49 @@ final class HyperlinkStyle {
   /// resolved foreground color is used.
   final Color? textColor;
 
+  /// Border color for a rectangle outline drawn around the link range.
+  ///
+  /// When null, no outline is drawn. Outlines render on top of the link
+  /// text with a width derived from the cell height.
+  final Color? outlineColor;
+
+  /// Fill color for a rectangle painted behind the link range.
+  ///
+  /// When null, no fill is drawn. Fills render under the link text, so
+  /// semi-transparent colors tint the cells without hiding the glyphs.
+  final Color? backgroundColor;
+
   const HyperlinkStyle({
     this.underline = .none,
     this.underlineColor,
     this.textColor,
+    this.outlineColor,
+    this.backgroundColor,
   });
 
   @override
-  int get hashCode => Object.hash(underline, underlineColor, textColor);
+  int get hashCode => Object.hash(
+    underline,
+    underlineColor,
+    textColor,
+    outlineColor,
+    backgroundColor,
+  );
 
   @override
   bool operator ==(Object other) =>
       other is HyperlinkStyle &&
       other.underline == underline &&
       other.underlineColor == underlineColor &&
-      other.textColor == textColor;
+      other.textColor == textColor &&
+      other.outlineColor == outlineColor &&
+      other.backgroundColor == backgroundColor;
 
   @override
   String toString() =>
       'HyperlinkStyle(underline: $underline, '
-      'underlineColor: $underlineColor, textColor: $textColor)';
+      'underlineColor: $underlineColor, textColor: $textColor, '
+      'outlineColor: $outlineColor, backgroundColor: $backgroundColor)';
 
   static HyperlinkStyle? lerp(HyperlinkStyle? a, HyperlinkStyle? b, double t) {
     if (identical(a, b)) return a;
@@ -176,6 +199,8 @@ final class HyperlinkStyle {
       underline: t < 0.5 ? a.underline : b.underline,
       underlineColor: Color.lerp(a.underlineColor, b.underlineColor, t),
       textColor: Color.lerp(a.textColor, b.textColor, t),
+      outlineColor: Color.lerp(a.outlineColor, b.outlineColor, t),
+      backgroundColor: Color.lerp(a.backgroundColor, b.backgroundColor, t),
     );
   }
 }
