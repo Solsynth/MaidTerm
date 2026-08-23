@@ -20,5 +20,6 @@ dependencies:
       ref: 5196982aa96ccbb2e4f6e0c0fe75b5e4e2a11a4a
   meta: ^1.18.0
 
-dev_dependencies:
+  flutter_test:
+    sdk: flutter
   test: ^1.25.0

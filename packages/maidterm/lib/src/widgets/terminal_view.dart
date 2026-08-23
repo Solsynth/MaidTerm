@@ -186,6 +186,35 @@ class TerminalViewState extends State<TerminalView> {
   }
 
   @override
+  void initState() {
+    super.initState();
+
+    _binding = _asBinding(_controller);
+
+    _focusNode = widget.focusNode ?? FocusNode();
+    _renderObserver = _FocusRenderObserver(_controller, _focusNode);
+
+    _theme = widget.theme ?? TerminalTheme.dark();
+    _devicePixelRatio =
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+    _metrics = _measureMetrics();
+
+    if (widget.fontData == null) {
+      unawaited(_resolveFontData(_theme.fontFamily));
+    }
+
+    _scrollController = widget.scrollController ?? TerminalScrollController();
+    _ownsScrollController = widget.scrollController == null;
+    _scrollController.addListener(_onScrollChanged);
+
+    _binding.brightness = _themeBrightness;
+    _binding.attach(_focusNode, _scrollController);
+    _controller.addListener(_onControllerChanged);
+    _binding.terminal.addListener(_onTerminalContentChanged);
+    _syncLinkInteraction();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
@@ -203,11 +232,13 @@ class TerminalViewState extends State<TerminalView> {
 
     if (widget.controller != oldWidget.controller) {
       oldWidget.controller.removeListener(_onControllerChanged);
+      _binding.terminal.removeListener(_onTerminalContentChanged);
       _binding.detach();
       _binding = _asBinding(_controller);
       _binding.brightness = _themeBrightness;
       _binding.attach(_focusNode, _scrollController);
       _controller.addListener(_onControllerChanged);
+      _binding.terminal.addListener(_onTerminalContentChanged);
       _links.invalidateContent();
     }
 
@@ -261,40 +292,13 @@ class TerminalViewState extends State<TerminalView> {
   void dispose() {
     _blinkTimer?.cancel();
     _controller.removeListener(_onControllerChanged);
+    _binding.terminal.removeListener(_onTerminalContentChanged);
     _binding.detach();
     _renderObserver.dispose();
     if (_ownsFocusNode) _focusNode.dispose();
     _scrollController.removeListener(_onScrollChanged);
     if (_ownsScrollController) _scrollController.dispose();
     super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    _binding = _asBinding(_controller);
-
-    _focusNode = widget.focusNode ?? FocusNode();
-    _renderObserver = _FocusRenderObserver(_controller, _focusNode);
-
-    _theme = widget.theme ?? TerminalTheme.dark();
-    _devicePixelRatio =
-        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
-    _metrics = _measureMetrics();
-
-    if (widget.fontData == null) {
-      unawaited(_resolveFontData(_theme.fontFamily));
-    }
-
-    _scrollController = widget.scrollController ?? TerminalScrollController();
-    _ownsScrollController = widget.scrollController == null;
-    _scrollController.addListener(_onScrollChanged);
-
-    _binding.brightness = _themeBrightness;
-    _binding.attach(_focusNode, _scrollController);
-    _controller.addListener(_onControllerChanged);
-    _syncLinkInteraction();
   }
 
   Widget _build(BuildContext context, TerminalRenderCache cache) {
@@ -485,6 +489,29 @@ class TerminalViewState extends State<TerminalView> {
       settings: widget.linkSettings,
       idleStyle: _theme.hyperlink.idle,
     );
+  }
+
+  /// Refreshes idle link styling when terminal content changes.
+  ///
+  /// The controller only notifies the view for a few tracked properties
+  /// (mouse tracking, active screen, cursor keys, blinking), so plain output
+  /// and `clear` never reach [_onControllerChanged]. The renderer repaints on
+  /// every terminal change, but it consumes the view's cached link snapshot;
+  /// without this listener, underlines stayed at stale positions after output
+  /// scrolled or the screen was cleared. Scrolling is handled separately by
+  /// [_onScrollChanged]; this listener covers content-driven changes.
+  void _onTerminalContentChanged() {
+    if (!_links.hasIdleStyling) return;
+    _links.invalidateContent();
+    _syncLinkInteraction();
+    // The terminal can notify mid-layout (e.g. grid resize), so defer the
+    // rebuild out of the current frame to avoid "Build scheduled during
+    // frame".
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   void _onScrollChanged() {

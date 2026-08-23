@@ -264,6 +264,12 @@ class TerminalRenderBox extends RenderBox {
     markNeedsPaint();
   }
 
+  /// The link snapshot currently consumed by the frame builder.
+  ///
+  /// Exposed read-only so tests can assert which link state the renderer is
+  /// painting after viewport or content changes.
+  LinkSnapshot get linkSnapshotForTest => _linkSnapshot;
+
   @override
   bool get isRepaintBoundary => true;
 
