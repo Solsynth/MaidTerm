@@ -43,6 +43,23 @@ void main() {
     s.dispose();
   });
 
+  test('working directory tracks the shell-reported OSC 7 path', () {
+    final s = LocalShellSession(
+      workingDirectory: '/tmp/start',
+      autoStart: false,
+    );
+    expect(s.workingDirectory, '/tmp/start');
+    s.controller.write(utf8.encode('\x1b]7;file://localhost/tmp/project\x07'));
+    expect(s.workingDirectory, '/tmp/project');
+    s.dispose();
+  });
+
+  test('disposing a session does not report a process exit', () async {
+    var exited = false;
+    final s = LocalShellSession(autoStart: false)..onExit = () => exited = true;
+    await s.dispose();
+    expect(exited, isFalse);
+  });
   test('OSC 9;4 progress reports update and clear session progress', () {
     final s = session();
 

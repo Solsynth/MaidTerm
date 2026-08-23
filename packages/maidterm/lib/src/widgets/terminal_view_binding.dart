@@ -32,6 +32,12 @@ abstract interface class TerminalViewBinding {
   /// Active virtual modifier keys.
   Mods get virtualMods;
 
+  /// Whether this binding is currently attached to [focusNode].
+  ///
+  /// Lets a view dispose without tearing down a binding that a newer view
+  /// for the same controller has already re-attached.
+  bool isBoundTo(FocusNode focusNode);
+
   /// Subscribes to [focusNode] and [scrollController] for focus and
   /// scroll handling.
   void attach(FocusNode focusNode, ScrollController scrollController);

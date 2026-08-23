@@ -188,6 +188,9 @@ class TerminalControllerImpl extends TerminalController
   }
 
   @override
+  bool isBoundTo(FocusNode focusNode) => identical(_focusNode, focusNode);
+
+  @override
   void attach(FocusNode focusNode, ScrollController scrollController) {
     _focusNode?.removeListener(_onFocusChanged);
     _focusNode = focusNode;

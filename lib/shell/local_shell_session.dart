@@ -26,12 +26,13 @@ import 'package:maidterm_app/shell/process_title_monitor.dart';
 class LocalShellSession {
   LocalShellSession({
     String? shell,
+    String? workingDirectory,
     bool autoStart = true,
     bool cursorBlink = true,
     maidterm.CursorShape cursorStyle = maidterm.CursorShape.block,
     ProcessTitleMonitor? processMonitor,
   }) : _fallbackTitle = _shellNameOf(shell ?? _defaultShell()),
-       _spawnCwd = _defaultWorkingDirectory() {
+       _spawnCwd = _normalizeWorkingDirectory(workingDirectory) {
     _monitor = processMonitor;
     _controller = maidterm.TerminalController(
       config: maidterm.TerminalConfig(
@@ -67,6 +68,7 @@ class LocalShellSession {
     );
     _ptyPid = pty.pid;
     _subscriptions.add(pty.output.listen(_controller.write));
+    unawaited(pty.exitCode.then((_) => _handlePtyExit()));
     final monitor = _monitor;
     if (monitor != null) {
       monitor.addListener(_refreshTitle);
@@ -75,6 +77,12 @@ class LocalShellSession {
   }
 
   Pty? _pty;
+
+  /// Called when the shell process exits on its own.
+  VoidCallback? onExit;
+
+  bool _disposed = false;
+  bool _exitHandled = false;
   int? _ptyPid;
   ProcessTitleMonitor? _monitor;
   late final maidterm.TerminalController _controller;
@@ -112,6 +120,13 @@ class LocalShellSession {
   /// foreground process name, else the working directory for shells, else
   /// the shell name.
   ValueListenable<String> get title => _displayTitle;
+
+  /// Current working directory reported by the shell, or the spawn directory
+  /// until the shell sends its first OSC 7 update.
+  String get workingDirectory {
+    final pwd = _pwd.trim();
+    return pwd.isEmpty ? _spawnCwd : _stripFileScheme(pwd);
+  }
 
   /// Live OSC 9;4 progress reported by the running program.
   ValueListenable<maidterm.TerminalProgress?> get progress => _progress;
@@ -197,6 +212,11 @@ class LocalShellSession {
     return slash < 0 ? rest : rest.substring(slash);
   }
 
+  static String _normalizeWorkingDirectory(String? workingDirectory) {
+    final normalized = _stripFileScheme(workingDirectory?.trim() ?? '');
+    return normalized.isEmpty ? _defaultWorkingDirectory() : normalized;
+  }
+
   static String _defaultWorkingDirectory() =>
       Platform.environment['HOME'] ?? '/';
 
@@ -208,7 +228,15 @@ class LocalShellSession {
     return name;
   }
 
+  void _handlePtyExit() {
+    if (_disposed || _exitHandled) return;
+    _exitHandled = true;
+    onExit?.call();
+  }
+
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
     _monitor?.removeListener(_refreshTitle);
     for (final subscription in _subscriptions) {
       await subscription.cancel();

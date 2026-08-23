@@ -19,7 +19,10 @@ void main() {
     return ProviderScope(
       overrides: [
         localShellSessionFactoryProvider.overrideWithValue(
-          () => LocalShellSession(autoStart: false),
+          ({String? workingDirectory}) => LocalShellSession(
+            workingDirectory: workingDirectory,
+            autoStart: false,
+          ),
         ),
       ],
       child: const MaterialApp(home: TerminalWorkspacePage()),
@@ -110,8 +113,8 @@ void main() {
     const expectedSizes = {
       'top': Size(1100, 600),
       'bottom': Size(1100, 600),
-      'left': Size(918, 640),
-      'right': Size(918, 640),
+      'left': Size(919.5, 640),
+      'right': Size(919.5, 640),
     };
     for (final entry in expectedSizes.entries) {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -189,7 +192,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
-      const Size(918, 640),
+      const Size(919.5, 640),
     );
 
     await tester.drag(
@@ -200,7 +203,7 @@ void main() {
 
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
-      const Size(858, 640),
+      const Size(859.5, 640),
     );
     await tester.pumpAndSettle();
     expect(
@@ -214,7 +217,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
-      const Size(858, 640),
+      const Size(859.5, 640),
     );
   });
 
@@ -317,16 +320,27 @@ void main() {
               node?.debugLabel == 'terminal-input' && (node?.hasFocus ?? false),
         );
 
+    final state = container.read(terminalWorkspaceProvider);
+    final panes = state.panes.values.toList();
+    final pane1 = panes.first;
+    final pane2 = panes.last;
+
     final terminals = find.byType(maidterm.TerminalView);
     await tester.tapAt(tester.getCenter(terminals.at(0)));
     await tester.pumpAndSettle();
     expect(hasFocus(terminals.at(0)), isTrue);
     expect(hasFocus(terminals.at(1)), isFalse);
+    // The controller binding drives cursor rendering; it must agree with
+    // the focus widget or the unfocused cursor never repaints.
+    expect(pane1.tab.session.controller.hasFocus, isTrue);
+    expect(pane2.tab.session.controller.hasFocus, isFalse);
 
     await tester.tapAt(tester.getCenter(terminals.at(1)));
     await tester.pump();
     expect(hasFocus(terminals.at(0)), isFalse);
     expect(hasFocus(terminals.at(1)), isTrue);
+    expect(pane1.tab.session.controller.hasFocus, isFalse);
+    expect(pane2.tab.session.controller.hasFocus, isTrue);
   });
   testWidgets('ignores transparent background in full-screen mode', (
     tester,
@@ -394,7 +408,39 @@ void main() {
     expect(state.selectedTab?.id, state.tabs.last.id);
   });
 
-  testWidgets('split creates two panes with two terminals', (tester) async {
+  testWidgets('new tabs inherit the selected tab working directory', (
+    tester,
+  ) async {
+    final workingDirectories = <String?>[];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localShellSessionFactoryProvider.overrideWithValue(({
+            String? workingDirectory,
+          }) {
+            workingDirectories.add(workingDirectory);
+            return LocalShellSession(
+              workingDirectory: workingDirectory ?? '/tmp/project',
+              autoStart: false,
+            );
+          }),
+        ],
+        child: const MaterialApp(home: TerminalWorkspacePage()),
+      ),
+    );
+    await tester.pump();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
+    container.read(terminalWorkspaceProvider.notifier).openTerminal();
+
+    expect(workingDirectories, [null, '/tmp/project']);
+  });
+
+  testWidgets('split keeps panes inside the active top-level tab', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildWorkspace());
     await tester.pump();
 
@@ -409,9 +455,35 @@ void main() {
     final state = container.read(terminalWorkspaceProvider);
     expect(state.layout?.isSplit, isTrue);
     expect(state.panes.length, 2);
-    expect(state.tabs.length, 2);
+    expect(state.tabs.length, 1);
     expect(find.byType(maidterm.TerminalView), findsNWidgets(2));
     expect(find.byKey(const ValueKey('workspace-tab-bar')), findsOneWidget);
+    for (final pane in state.panes.values) {
+      expect(find.byKey(ValueKey('pane-tab-${pane.tab.id}')), findsOneWidget);
+    }
+  });
+
+  testWidgets('vertical tab entry stacks pane tabs without overflow', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'terminal.tabBarPosition': 'left'});
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
+    container
+        .read(terminalWorkspaceProvider.notifier)
+        .split(SplitAxis.horizontal);
+    await tester.pumpAndSettle();
+
+    final state = container.read(terminalWorkspaceProvider);
+    expect(state.tabs, hasLength(1));
+    expect(state.panes, hasLength(2));
+    for (final pane in state.panes.values) {
+      expect(find.byKey(ValueKey('pane-tab-${pane.tab.id}')), findsOneWidget);
+    }
   });
   testWidgets('closing the last tab shows the empty state', (tester) async {
     await tester.pumpWidget(buildWorkspace());

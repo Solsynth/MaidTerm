@@ -10,6 +10,8 @@ import 'settings/background_image.dart';
 import 'settings/settings_page.dart';
 import 'settings/terminal_settings.dart';
 import 'workspace/terminal_workspace.dart';
+import 'workspace/session_layout.dart';
+
 import 'workspace/terminal_workspace_page.dart';
 import 'theme.dart';
 
@@ -23,13 +25,53 @@ class MaidTermApp extends ConsumerStatefulWidget {
 }
 
 class _MaidTermAppState extends ConsumerState<MaidTermApp> {
+  static const _menuChannel = MethodChannel('maidterm/menu');
+
   final _navigatorKey = GlobalKey<NavigatorState>();
   final _settingsOpen = ValueNotifier<bool>(false);
 
   @override
-  void dispose() {
-    _settingsOpen.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _menuChannel.setMethodCallHandler(_handleMenuCall);
+  }
+
+  Future<void> _handleMenuCall(MethodCall call) async {
+    switch (call.method) {
+      case 'newTab':
+        _openTerminal();
+      case 'splitRight':
+        _split(SplitAxis.horizontal);
+      case 'splitBelow':
+        _split(SplitAxis.vertical);
+      case 'closeTab':
+        _closeSelectedTab();
+      case 'closePane':
+        _closeFocusedPane();
+    }
+  }
+
+  void _openTerminal() {
+    ref.read(terminalWorkspaceProvider.notifier).openTerminal();
+  }
+
+  void _split(SplitAxis axis) {
+    ref.read(terminalWorkspaceProvider.notifier).split(axis);
+  }
+
+  void _closeSelectedTab() {
+    final workspace = ref.read(terminalWorkspaceProvider);
+    final tabId = workspace.selectedTab?.id;
+    if (tabId != null) {
+      ref.read(terminalWorkspaceProvider.notifier).closeTab(tabId);
+    }
+  }
+
+  void _closeFocusedPane() {
+    final paneId = ref.read(terminalWorkspaceProvider).focusedPaneId;
+    if (paneId != null) {
+      ref.read(terminalWorkspaceProvider.notifier).closePane(paneId);
+    }
   }
 
   void _openSettings() {
@@ -78,7 +120,25 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
           const SingleActivator(LogicalKeyboardKey.comma, meta: true): () =>
               _openSettings(),
           const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
-              ref.read(terminalWorkspaceProvider.notifier).openTerminal(),
+              _openTerminal(),
+          const SingleActivator(LogicalKeyboardKey.keyT, meta: true): () =>
+              _openTerminal(),
+          const SingleActivator(LogicalKeyboardKey.keyD, meta: true): () =>
+              _split(SplitAxis.horizontal),
+          const SingleActivator(
+            LogicalKeyboardKey.keyD,
+            meta: true,
+            shift: true,
+          ): () =>
+              _split(SplitAxis.vertical),
+          const SingleActivator(LogicalKeyboardKey.keyW, meta: true): () =>
+              _closeSelectedTab(),
+          const SingleActivator(
+            LogicalKeyboardKey.keyW,
+            meta: true,
+            shift: true,
+          ): () =>
+              _closeFocusedPane(),
         },
         child: const TerminalWorkspacePage(),
       ),

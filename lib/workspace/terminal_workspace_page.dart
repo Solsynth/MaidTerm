@@ -7,6 +7,8 @@ import 'package:maidterm/maidterm.dart' as maidterm;
 import '../settings/settings_page.dart';
 import '../settings/terminal_color_scheme.dart';
 import '../settings/terminal_settings.dart';
+import '../settings/background_image.dart';
+
 import 'session_layout.dart';
 import 'terminal_surface.dart';
 import 'terminal_workspace.dart';
@@ -371,7 +373,10 @@ class _ResizableTabBarState extends State<_ResizableTabBar> {
         onHorizontalDragCancel: _onDragEnd,
         child: ColoredBox(
           color: scheme.outlineVariant.withValues(alpha: 0.42),
-          child: const SizedBox(width: 2, height: double.infinity),
+          child: const SizedBox(
+            width: _tabBarBorderThickness,
+            height: double.infinity,
+          ),
         ),
       ),
     );
@@ -418,6 +423,14 @@ class _WorkspaceTabBar extends ConsumerWidget {
 
   Widget _buildTabBar(BuildContext context, WidgetRef ref, bool compact) {
     final scheme = Theme.of(context).colorScheme;
+    final backgroundImage = ref
+        .watch(maidTermBackgroundImageProvider)
+        .asData
+        ?.value;
+    final backgroundImageEnabled =
+        ref.watch(maidTermBackgroundImageEnabledProvider).asData?.value ?? true;
+    final hasBackgroundImage =
+        backgroundImageEnabled && backgroundImage != null;
     final notifier = ref.read(terminalWorkspaceProvider.notifier);
 
     void reorderTab(String tabId, {int? toIndex}) {
@@ -484,12 +497,8 @@ class _WorkspaceTabBar extends ConsumerWidget {
           tooltip: 'Close pane',
           icon: const Icon(Symbols.close, size: 18),
           onPressed: () {
-            final pane = focusedPaneId == null
-                ? null
-                : workspace.panes[focusedPaneId];
-            if (pane == null) return;
-            for (final tabId in [...pane.tabIds]) {
-              notifier.closeTab(tabId);
+            if (focusedPaneId != null) {
+              notifier.closePane(focusedPaneId);
             }
           },
         ),
@@ -529,22 +538,26 @@ class _WorkspaceTabBar extends ConsumerWidget {
                   );
                 }
                 final tab = workspace.tabs[index];
-                final paneId = workspace.paneIdForTab(tab.id);
-                final selected = tab.id == workspace.selectedTab?.id;
-                return _DraggablePaneTab(
-                  key: ValueKey(tab.id),
+                final tabEntry = _WorkspaceTabEntry(
                   tab: tab,
-                  selected: selected,
-                  index: index,
+                  selected: tab.id == workspace.selectedTab?.id,
                   position: position,
                   height: height,
                   compact: compact,
-                  onSelect: () {
-                    if (paneId == null) return;
-                    notifier.selectTab(tab.id, paneId: paneId);
-                    tab.session.controller.requestFocus();
+                  onSelectPane: (paneId) {
+                    notifier.selectTab(tab.id);
+                    notifier.focusPane(paneId);
                   },
-                  onClose: () => notifier.closeTab(tab.id),
+                  onClosePane: (paneId) =>
+                      notifier.closePaneInTab(tab.id, paneId),
+                );
+                return _DraggableWorkspaceTab(
+                  key: ValueKey(tab.id),
+                  tab: tab,
+                  index: index,
+                  position: position,
+                  height: height,
+                  child: tabEntry,
                   onAccept: (data, insertIndex) =>
                       reorderTab(data.tabId, toIndex: insertIndex),
                 );
@@ -574,7 +587,9 @@ class _WorkspaceTabBar extends ConsumerWidget {
 
     return Material(
       key: const ValueKey('workspace-tab-bar'),
-      color: scheme.surfaceContainerHigh.withValues(alpha: 0.64),
+      color: hasBackgroundImage
+          ? scheme.surfaceContainer.withValues(alpha: 0.64)
+          : scheme.surfaceContainer,
       child: SizedBox(
         width: _vertical ? (width ?? _workspaceTabBarWidth) : null,
         height: _vertical ? null : height,
@@ -590,28 +605,156 @@ class _TabDragData {
   final String tabId;
 }
 
-class _DraggablePaneTab extends StatelessWidget {
-  const _DraggablePaneTab({
-    super.key,
+class _WorkspaceTabEntry extends StatelessWidget {
+  const _WorkspaceTabEntry({
     required this.tab,
     required this.selected,
-    required this.index,
     required this.position,
     required this.height,
     required this.compact,
-    required this.onSelect,
-    required this.onClose,
-    required this.onAccept,
+    required this.onSelectPane,
+    required this.onClosePane,
   });
 
-  final TerminalTab tab;
+  final TerminalWorkspaceTab tab;
   final bool selected;
-  final int index;
   final TabBarPosition position;
   final double height;
   final bool compact;
-  final VoidCallback onSelect;
-  final VoidCallback onClose;
+  final ValueChanged<String> onSelectPane;
+  final ValueChanged<String> onClosePane;
+  @override
+  Widget build(BuildContext context) {
+    final chipHeight = (height - 8).clamp(1, height).toDouble();
+    final panes = tab.panes.values.toList();
+    if (panes.length < 2) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: _PaneTabChip(
+          key: ValueKey('pane-tab-${panes.first.tab.id}'),
+          tab: panes.first.tab,
+          selected: selected && panes.first.id == tab.focusedPaneId,
+          position: position,
+          height: chipHeight,
+          compact: compact,
+          onSelect: () => onSelectPane(panes.first.id),
+          onClose: () => onClosePane(panes.first.id),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: _MergedPaneTabPill(
+        panes: panes,
+        selectedPaneId: selected ? tab.focusedPaneId : null,
+        position: position,
+        height: chipHeight,
+        compact: compact,
+        onSelectPane: onSelectPane,
+        onClosePane: onClosePane,
+      ),
+    );
+  }
+}
+
+class _MergedPaneTabPill extends StatelessWidget {
+  const _MergedPaneTabPill({
+    required this.panes,
+    required this.selectedPaneId,
+    required this.position,
+    required this.height,
+    required this.compact,
+    required this.onSelectPane,
+    required this.onClosePane,
+  });
+
+  final List<TerminalPane> panes;
+  final String? selectedPaneId;
+  final TabBarPosition position;
+  final double height;
+  final bool compact;
+  final ValueChanged<String> onSelectPane;
+  final ValueChanged<String> onClosePane;
+
+  bool get _vertical =>
+      position == TabBarPosition.left || position == TabBarPosition.right;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final pillRadius = BorderRadius.circular(12);
+    final pillBorder = BorderSide(
+      color: selectedPaneId != null
+          ? scheme.primary.withValues(alpha: 0.28)
+          : scheme.outlineVariant.withValues(alpha: 0.24),
+      width: _tabBarBorderThickness,
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: selectedPaneId != null
+            ? scheme.surfaceContainerHighest
+            : scheme.surfaceContainerHigh.withValues(alpha: 0.72),
+        border: Border.all(color: pillBorder.color, width: pillBorder.width),
+        borderRadius: pillRadius,
+      ),
+      child: ClipRRect(
+        borderRadius: pillRadius,
+        child: Flex(
+          direction: _vertical ? Axis.vertical : Axis.horizontal,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < panes.length; i++) ...[
+              if (i > 0)
+                _paneDivider(
+                  scheme,
+                  _vertical ? Axis.horizontal : Axis.vertical,
+                ),
+              _PaneTabSegment(
+                key: ValueKey('pane-tab-${panes[i].tab.id}'),
+                tab: panes[i].tab,
+                selected: panes[i].id == selectedPaneId,
+                vertical: _vertical,
+                height: height,
+                compact: compact,
+                onSelect: () => onSelectPane(panes[i].id),
+                onClose: () => onClosePane(panes[i].id),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _paneDivider(ColorScheme scheme, Axis axis) {
+    final color = selectedPaneId != null
+        ? scheme.primary.withValues(alpha: 0.2)
+        : scheme.outlineVariant.withValues(alpha: 0.3);
+    return SizedBox(
+      width: axis == Axis.horizontal ? double.infinity : _tabBarBorderThickness,
+      height: axis == Axis.vertical ? double.infinity : _tabBarBorderThickness,
+      child: ColoredBox(color: color),
+    );
+  }
+}
+
+class _DraggableWorkspaceTab extends StatelessWidget {
+  const _DraggableWorkspaceTab({
+    super.key,
+    required this.tab,
+    required this.index,
+    required this.position,
+    required this.height,
+    required this.child,
+    required this.onAccept,
+  });
+
+  final TerminalWorkspaceTab tab;
+  final int index;
+  final TabBarPosition position;
+  final double height;
+  final Widget child;
   final void Function(_TabDragData data, int insertIndex) onAccept;
 
   bool get _vertical =>
@@ -620,15 +763,7 @@ class _DraggablePaneTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final chip = _PaneTabChip(
-      tab: tab,
-      selected: selected,
-      position: position,
-      height: height,
-      compact: compact,
-      onSelect: onSelect,
-      onClose: onClose,
-    );
+    final groupHeight = _vertical ? height * tab.panes.length : height;
     final dragData = _TabDragData(tabId: tab.id);
     final feedback = Material(
       elevation: 4,
@@ -638,15 +773,9 @@ class _DraggablePaneTab extends StatelessWidget {
         height: height,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Symbols.terminal, size: 16, color: scheme.onSurfaceVariant),
-              if (!compact) ...[
-                const SizedBox(width: 6),
-                Text(tab.title, style: Theme.of(context).textTheme.labelMedium),
-              ],
-            ],
+          child: Text(
+            tab.title,
+            style: Theme.of(context).textTheme.labelMedium,
           ),
         ),
       ),
@@ -660,28 +789,25 @@ class _DraggablePaneTab extends StatelessWidget {
             data: dragData,
             dragAnchorStrategy: pointerDragAnchorStrategy,
             feedback: feedback,
-            childWhenDragging: Opacity(opacity: 0.35, child: chip),
-            child: chip,
+            childWhenDragging: Opacity(opacity: 0.35, child: child),
+            child: child,
           )
         : Draggable<_TabDragData>(
             data: dragData,
             dragAnchorStrategy: pointerDragAnchorStrategy,
             feedback: feedback,
-            childWhenDragging: Opacity(opacity: 0.35, child: chip),
-            child: chip,
+            childWhenDragging: Opacity(opacity: 0.35, child: child),
+            child: child,
           );
 
     return DragTarget<_TabDragData>(
       onWillAcceptWithDetails: (details) => details.data.tabId != tab.id,
-      onAcceptWithDetails: (details) {
-        // Insert before this tab for stable reordering.
-        onAccept(details.data, index);
-      },
+      onAcceptWithDetails: (details) => onAccept(details.data, index),
       builder: (context, candidate, rejected) {
         final showInsert = candidate.isNotEmpty;
         return SizedBox(
           width: _vertical ? double.infinity : null,
-          height: height,
+          height: groupHeight + (showInsert && _vertical ? 2 : 0),
           child: Flex(
             direction: _vertical ? Axis.vertical : Axis.horizontal,
             mainAxisSize: MainAxisSize.min,
@@ -707,8 +833,108 @@ class _DraggablePaneTab extends StatelessWidget {
   }
 }
 
+/// Shared content row for a pane tab: status icon, title, close button.
+class _PaneTabContent extends StatelessWidget {
+  const _PaneTabContent({
+    required this.tab,
+    required this.selected,
+    required this.vertical,
+    required this.height,
+    required this.compact,
+    required this.onClose,
+  });
+
+  final TerminalTab tab;
+  final bool selected;
+  final bool vertical;
+  final double height;
+  final bool compact;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final controlSize = height.clamp(0, _workspaceTabBarHeight).toDouble();
+    return Align(
+      alignment: compact ? Alignment.center : Alignment.centerLeft,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 16),
+        child: Row(
+          mainAxisSize: compact
+              ? MainAxisSize.min
+              : vertical
+              ? MainAxisSize.max
+              : MainAxisSize.min,
+          children: [
+            ValueListenableBuilder<maidterm.TerminalProgress?>(
+              valueListenable: tab.session.progress,
+              builder: (context, progress, _) {
+                final color = switch (progress?.state) {
+                  .error => scheme.error,
+                  .paused => scheme.tertiary,
+                  _ => selected ? scheme.primary : scheme.onSurface,
+                };
+                if (progress == null ||
+                    progress.state == .remove ||
+                    progress.state == .paused) {
+                  return Icon(
+                    progress?.state == .paused
+                        ? Symbols.pause_circle
+                        : Symbols.terminal,
+                    size: 16,
+                    color: color,
+                  );
+                }
+                return SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    value: progress.value == null
+                        ? null
+                        : progress.value! / 100,
+                    color: color,
+                  ),
+                );
+              },
+            ),
+            if (!compact) ...[
+              const SizedBox(width: 6),
+              Flexible(
+                fit: vertical ? FlexFit.tight : FlexFit.loose,
+                child: Text(
+                  tab.title,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium
+                      ?.copyWith(color: selected ? scheme.primary : null),
+                ),
+              ),
+            ],
+            if (!compact) ...[
+              const SizedBox(width: 2),
+              IconButton(
+                tooltip: 'Close tab',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(
+                  minWidth: controlSize,
+                  minHeight: controlSize,
+                ),
+                onPressed: onClose,
+                icon: const Icon(Symbols.close, size: 16),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A standalone rounded tab pill (tabs without splits).
 class _PaneTabChip extends StatelessWidget {
   const _PaneTabChip({
+    super.key,
     required this.tab,
     required this.selected,
     required this.position,
@@ -732,15 +958,79 @@ class _PaneTabChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final selectedBorder = BorderSide(
+    final pillRadius = BorderRadius.circular(12);
+    final pillBorder = BorderSide(
       color: selected
-          ? scheme.primary.withValues(alpha: 0.68)
-          : Colors.transparent,
+          ? scheme.primary.withValues(alpha: 0.28)
+          : scheme.outlineVariant.withValues(alpha: 0.24),
       width: _tabBarBorderThickness,
     );
-    final controlSize = height.clamp(0, _workspaceTabBarHeight).toDouble();
     final chip = SizedBox(
       width: _vertical ? double.infinity : null,
+      height: height,
+      child: Listener(
+        onPointerDown: (event) {
+          if (event.buttons & kMiddleMouseButton != 0) {
+            onClose();
+          }
+        },
+        child: InkWell(
+          borderRadius: pillRadius,
+          onTap: onSelect,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: selected
+                  ? scheme.surfaceContainerHighest
+                  : scheme.surfaceContainerHigh.withValues(alpha: 0.72),
+              border: Border.all(
+                color: pillBorder.color,
+                width: pillBorder.width,
+              ),
+              borderRadius: pillRadius,
+            ),
+            child: _PaneTabContent(
+              tab: tab,
+              selected: selected,
+              vertical: _vertical,
+              height: height,
+              compact: compact,
+              onClose: onClose,
+            ),
+          ),
+        ),
+      ),
+    );
+    return compact ? Tooltip(message: tab.title, child: chip) : chip;
+  }
+}
+
+/// A flat segment inside a merged split pill. No own border or corner
+/// rounding; the selected segment is highlighted with a fill tint.
+class _PaneTabSegment extends StatelessWidget {
+  const _PaneTabSegment({
+    super.key,
+    required this.tab,
+    required this.selected,
+    required this.vertical,
+    required this.height,
+    required this.compact,
+    required this.onSelect,
+    required this.onClose,
+  });
+
+  final TerminalTab tab;
+  final bool selected;
+  final bool vertical;
+  final double height;
+  final bool compact;
+  final VoidCallback onSelect;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final segment = SizedBox(
+      width: vertical ? double.infinity : null,
       height: height,
       child: Listener(
         onPointerDown: (event) {
@@ -752,97 +1042,21 @@ class _PaneTabChip extends StatelessWidget {
           onTap: onSelect,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              border: _vertical
-                  ? Border(
-                      left: position == TabBarPosition.left
-                          ? selectedBorder
-                          : BorderSide.none,
-                      right: position == TabBarPosition.right
-                          ? selectedBorder
-                          : BorderSide.none,
-                    )
-                  : Border(bottom: selectedBorder),
+              color: selected ? scheme.primary.withValues(alpha: 0.16) : null,
             ),
-            child: Align(
-              alignment: compact ? Alignment.center : Alignment.centerLeft,
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 16),
-                child: Row(
-                  mainAxisSize: compact
-                      ? MainAxisSize.min
-                      : _vertical
-                      ? MainAxisSize.max
-                      : MainAxisSize.min,
-                  children: [
-                    ValueListenableBuilder<maidterm.TerminalProgress?>(
-                      valueListenable: tab.session.progress,
-                      builder: (context, progress, _) {
-                        final color = switch (progress?.state) {
-                          .error => scheme.error,
-                          .paused => scheme.tertiary,
-                          _ => selected ? scheme.primary : scheme.onSurface,
-                        };
-                        if (progress == null ||
-                            progress.state == .remove ||
-                            progress.state == .paused) {
-                          return Icon(
-                            progress?.state == .paused
-                                ? Symbols.pause_circle
-                                : Symbols.terminal,
-                            size: 16,
-                            color: color,
-                          );
-                        }
-                        return SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            value: progress.value == null
-                                ? null
-                                : progress.value! / 100,
-                            color: color,
-                          ),
-                        );
-                      },
-                    ),
-                    if (!compact) ...[
-                      const SizedBox(width: 6),
-                      Flexible(
-                        fit: _vertical ? FlexFit.tight : FlexFit.loose,
-                        child: Text(
-                          tab.title,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: selected ? scheme.primary : null,
-                              ),
-                        ),
-                      ),
-                    ],
-                    if (!compact) ...[
-                      const SizedBox(width: 2),
-                      IconButton(
-                        tooltip: 'Close tab',
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        constraints: BoxConstraints(
-                          minWidth: controlSize,
-                          minHeight: controlSize,
-                        ),
-                        onPressed: onClose,
-                        icon: const Icon(Symbols.close, size: 16),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+            child: _PaneTabContent(
+              tab: tab,
+              selected: selected,
+              vertical: vertical,
+              height: height,
+              compact: compact,
+              onClose: onClose,
             ),
           ),
         ),
       ),
     );
-    return compact ? Tooltip(message: tab.title, child: chip) : chip;
+    return compact ? Tooltip(message: tab.title, child: segment) : segment;
   }
 }
 
