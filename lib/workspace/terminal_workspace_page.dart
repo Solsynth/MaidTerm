@@ -43,7 +43,9 @@ class TerminalWorkspacePage extends ConsumerWidget {
         height: height,
       ),
     );
-    final layout = Expanded(child: _LayoutNode(node: root));
+    final layout = Expanded(
+      child: _WorkspaceGround(child: _LayoutNode(node: root)),
+    );
     final vertical =
         tabBarPosition == TabBarPosition.left ||
         tabBarPosition == TabBarPosition.right;
@@ -60,12 +62,48 @@ class TerminalWorkspacePage extends ConsumerWidget {
 class _EmptyWorkspace extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Center(
-      child: FilledButton.icon(
-        onPressed: () =>
-            ref.read(terminalWorkspaceProvider.notifier).openTerminal(),
-        icon: const Icon(Symbols.add),
-        label: const Text('New Terminal'),
+    return _WorkspaceGround(
+      child: Center(
+        child: FilledButton.icon(
+          onPressed: () =>
+              ref.read(terminalWorkspaceProvider.notifier).openTerminal(),
+          icon: const Icon(Symbols.add),
+          label: const Text('New Terminal'),
+        ),
+      ),
+    );
+  }
+}
+
+/// The workspace ground: a `surfaceContainer` field (or the subdued
+/// background image) that the floating pane lands sit on. Panes float above
+/// it with a ring of ground visible around every edge.
+class _WorkspaceGround extends ConsumerWidget {
+  const _WorkspaceGround({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final backgroundImage = ref
+        .watch(maidTermBackgroundImageProvider)
+        .asData
+        ?.value;
+    final backgroundImageEnabled =
+        ref.watch(maidTermBackgroundImageEnabledProvider).asData?.value ?? true;
+    final hasBackgroundImage =
+        backgroundImageEnabled && backgroundImage != null;
+    return DecoratedBox(
+      key: const ValueKey('workspace-ground'),
+      decoration: BoxDecoration(
+        color: hasBackgroundImage
+            ? scheme.surfaceContainer.withValues(alpha: 0.64)
+            : scheme.surfaceContainer,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(_workspaceGroundPadding),
+        child: child,
       ),
     );
   }
@@ -121,7 +159,6 @@ class _ResizableSplit extends StatefulWidget {
 }
 
 class _ResizableSplitState extends State<_ResizableSplit> {
-  static const _dividerThickness = _tabBarBorderThickness;
   double? _dragRatio;
 
   double get _ratio => _dragRatio ?? widget.ratio;
@@ -145,7 +182,6 @@ class _ResizableSplitState extends State<_ResizableSplit> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final isHorizontal = widget.axis == SplitAxis.horizontal;
 
     return LayoutBuilder(
@@ -153,7 +189,7 @@ class _ResizableSplitState extends State<_ResizableSplit> {
         final maxExtent = isHorizontal
             ? constraints.maxWidth
             : constraints.maxHeight;
-        final available = maxExtent - _dividerThickness;
+        final available = maxExtent - _paneGap;
         final firstExtent = available * _ratio;
         final secondExtent = available - firstExtent;
 
@@ -163,12 +199,10 @@ class _ResizableSplitState extends State<_ResizableSplit> {
             height: isHorizontal ? null : firstExtent,
             child: widget.first,
           ),
-          ColoredBox(
-            color: scheme.outlineVariant.withValues(alpha: 0.6),
-            child: SizedBox(
-              width: isHorizontal ? _dividerThickness : double.infinity,
-              height: isHorizontal ? double.infinity : _dividerThickness,
-            ),
+          // The ground gap between floating lands.
+          SizedBox(
+            width: isHorizontal ? _paneGap : double.infinity,
+            height: isHorizontal ? double.infinity : _paneGap,
           ),
           SizedBox(
             width: isHorizontal ? secondExtent : null,
@@ -202,9 +236,9 @@ class _ResizableSplitState extends State<_ResizableSplit> {
           children: [
             layout,
             Positioned(
-              left: isHorizontal ? firstExtent - 4 : 0,
+              left: isHorizontal ? firstExtent + (_paneGap - 8) / 2 : 0,
               right: isHorizontal ? null : 0,
-              top: isHorizontal ? 0 : firstExtent - 4,
+              top: isHorizontal ? 0 : firstExtent + (_paneGap - 8) / 2,
               bottom: isHorizontal ? 0 : null,
               width: isHorizontal ? 8 : null,
               height: isHorizontal ? null : 8,
@@ -264,17 +298,43 @@ class _TerminalPaneView extends ConsumerWidget {
                         .focusPane(paneId);
                     selected.session.controller.requestFocus();
                   },
-                  child: TerminalSurface(tab: selected, autofocus: focused),
+                  child: TerminalSurface(
+                    // Stable identity per pane: splitting or closing panes
+                    // restructures the layout tree, which would otherwise
+                    // destroy and recreate this terminal's element and tear
+                    // down the session's focus binding (the cursor would stop
+                    // tracking focus).
+                    key: GlobalObjectKey(workspace.panes[paneId]!.viewKey),
+                    tab: selected,
+                    autofocus: focused,
+                  ),
                 ),
               ],
             ),
           );
 
+    final scheme = Theme.of(context).colorScheme;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: () =>
           ref.read(terminalWorkspaceProvider.notifier).focusPane(paneId),
-      child: terminal,
+      child: Container(
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(_paneRadius),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(_paneRadius),
+          child: terminal,
+        ),
+      ),
     );
   }
 }
@@ -284,7 +344,13 @@ const _workspaceTabBarWidth = 180.0;
 const _compactTabBarWidth = 160.0;
 const _minWorkspaceTabBarWidth = 36.0;
 const _evenlySpacedActionWidth = 260.0;
-const _tabBarBorderThickness = 0.5;
+
+/// The floating-land chrome: a ring of ground around the whole layout and
+/// between split panes, plus the land rounding.
+const _workspaceGroundPadding = 10.0;
+const _paneGap = 10.0;
+const _paneRadius = 14.0;
+const _tabBarHandleWidth = 1.0;
 
 class _ResizableTabBar extends StatefulWidget {
   const _ResizableTabBar({
@@ -362,7 +428,8 @@ class _ResizableTabBarState extends State<_ResizableTabBar> {
     );
     if (!_vertical) return tabBar;
 
-    final scheme = Theme.of(context).colorScheme;
+    // Invisible drag strip: the sidebar and workspace ground share the
+    // `surfaceContainer` tone, so no divider line is needed between them.
     final handle = MouseRegion(
       cursor: SystemMouseCursors.resizeColumn,
       child: GestureDetector(
@@ -371,12 +438,9 @@ class _ResizableTabBarState extends State<_ResizableTabBar> {
         onHorizontalDragUpdate: _onHorizontalDragUpdate,
         onHorizontalDragEnd: (_) => _onDragEnd(),
         onHorizontalDragCancel: _onDragEnd,
-        child: ColoredBox(
-          color: scheme.outlineVariant.withValues(alpha: 0.42),
-          child: const SizedBox(
-            width: _tabBarBorderThickness,
-            height: double.infinity,
-          ),
+        child: const SizedBox(
+          width: _tabBarHandleWidth,
+          height: double.infinity,
         ),
       ),
     );
@@ -388,9 +452,22 @@ class _ResizableTabBarState extends State<_ResizableTabBar> {
       width: _width,
       child: tabBar,
     );
-    return widget.position == TabBarPosition.left
-        ? Row(children: [sidebar, handle])
-        : Row(children: [handle, sidebar]);
+    // The drag strip overlays the sidebar's edge instead of reserving a
+    // layout column, so no background shows through between the sidebar and
+    // the workspace ground (they share the `surfaceContainer` tone).
+    return Stack(
+      children: [
+        sidebar,
+        Positioned(
+          top: 0,
+          bottom: 0,
+          width: _tabBarHandleWidth,
+          left: widget.position == TabBarPosition.right ? 0 : null,
+          right: widget.position == TabBarPosition.left ? 0 : null,
+          child: handle,
+        ),
+      ],
+    );
   }
 }
 
@@ -683,18 +760,11 @@ class _MergedPaneTabPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final pillRadius = BorderRadius.circular(12);
-    final pillBorder = BorderSide(
-      color: selectedPaneId != null
-          ? scheme.primary.withValues(alpha: 0.28)
-          : scheme.outlineVariant.withValues(alpha: 0.24),
-      width: _tabBarBorderThickness,
-    );
     return DecoratedBox(
       decoration: BoxDecoration(
         color: selectedPaneId != null
             ? scheme.surfaceContainerHighest
             : scheme.surfaceContainerHigh.withValues(alpha: 0.72),
-        border: Border.all(color: pillBorder.color, width: pillBorder.width),
         borderRadius: pillRadius,
       ),
       child: ClipRRect(
@@ -704,12 +774,7 @@ class _MergedPaneTabPill extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (var i = 0; i < panes.length; i++) ...[
-              if (i > 0)
-                _paneDivider(
-                  scheme,
-                  _vertical ? Axis.horizontal : Axis.vertical,
-                ),
+            for (var i = 0; i < panes.length; i++)
               _PaneTabSegment(
                 key: ValueKey('pane-tab-${panes[i].tab.id}'),
                 tab: panes[i].tab,
@@ -720,21 +785,9 @@ class _MergedPaneTabPill extends StatelessWidget {
                 onSelect: () => onSelectPane(panes[i].id),
                 onClose: () => onClosePane(panes[i].id),
               ),
-            ],
           ],
         ),
       ),
-    );
-  }
-
-  Widget _paneDivider(ColorScheme scheme, Axis axis) {
-    final color = selectedPaneId != null
-        ? scheme.primary.withValues(alpha: 0.2)
-        : scheme.outlineVariant.withValues(alpha: 0.3);
-    return SizedBox(
-      width: axis == Axis.horizontal ? double.infinity : _tabBarBorderThickness,
-      height: axis == Axis.vertical ? double.infinity : _tabBarBorderThickness,
-      child: ColoredBox(color: color),
     );
   }
 }
@@ -959,12 +1012,6 @@ class _PaneTabChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final pillRadius = BorderRadius.circular(12);
-    final pillBorder = BorderSide(
-      color: selected
-          ? scheme.primary.withValues(alpha: 0.28)
-          : scheme.outlineVariant.withValues(alpha: 0.24),
-      width: _tabBarBorderThickness,
-    );
     final chip = SizedBox(
       width: _vertical ? double.infinity : null,
       height: height,
@@ -982,10 +1029,6 @@ class _PaneTabChip extends StatelessWidget {
               color: selected
                   ? scheme.surfaceContainerHighest
                   : scheme.surfaceContainerHigh.withValues(alpha: 0.72),
-              border: Border.all(
-                color: pillBorder.color,
-                width: pillBorder.width,
-              ),
               borderRadius: pillRadius,
             ),
             child: _PaneTabContent(

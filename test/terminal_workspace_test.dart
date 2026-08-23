@@ -89,7 +89,7 @@ void main() {
 
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
-      const Size(1100, 600),
+      const Size(1080, 580),
     );
   });
   testWidgets('terminal pane backing fills the full pane', (tester) async {
@@ -100,7 +100,7 @@ void main() {
 
     expect(
       tester.getSize(find.byKey(const ValueKey('terminal-pane-backdrop'))),
-      const Size(1100, 600),
+      const Size(1080, 580),
     );
   });
 
@@ -111,10 +111,10 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     const expectedSizes = {
-      'top': Size(1100, 600),
-      'bottom': Size(1100, 600),
-      'left': Size(919.5, 640),
-      'right': Size(919.5, 640),
+      'top': Size(1080, 580),
+      'bottom': Size(1080, 580),
+      'left': Size(900, 620),
+      'right': Size(900, 620),
     };
     for (final entry in expectedSizes.entries) {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -192,7 +192,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
-      const Size(919.5, 640),
+      const Size(900, 620),
     );
 
     await tester.drag(
@@ -203,7 +203,7 @@ void main() {
 
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
-      const Size(859.5, 640),
+      const Size(840, 620),
     );
     await tester.pumpAndSettle();
     expect(
@@ -217,7 +217,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
-      const Size(859.5, 640),
+      const Size(840, 620),
     );
   });
 

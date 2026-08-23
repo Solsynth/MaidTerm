@@ -256,12 +256,7 @@ class TerminalViewState extends State<TerminalView> {
   void dispose() {
     _blinkTimer?.cancel();
     _controller.removeListener(_onControllerChanged);
-    // A newer view for the same controller may have already re-attached the
-    // binding during the rebuild that unmounted this one; tearing it down
-    // here would strand the controller without a focus node.
-    if (_binding.isBoundTo(_focusNode)) {
-      _binding.detach();
-    }
+    _binding.detach();
     _renderObserver.dispose();
     if (_ownsFocusNode) _focusNode.dispose();
     _scrollController.removeListener(_onScrollChanged);

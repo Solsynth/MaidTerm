@@ -62,10 +62,14 @@ class TerminalTab {
 
 /// One pane inside a top-level workspace tab.
 class TerminalPane {
-  const TerminalPane({required this.id, required this.tab});
+  TerminalPane({required this.id, required this.tab}) : viewKey = Object();
 
   final String id;
   final TerminalTab tab;
+
+  /// Identity-stable key for the pane's terminal element, so layout
+  /// restructuring (split, close) moves the element instead of recreating it.
+  final Object viewKey;
 
   bool get isEmpty => false;
 }
