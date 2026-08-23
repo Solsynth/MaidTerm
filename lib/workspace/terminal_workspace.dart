@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import '../settings/terminal_settings.dart';
 import '../shell/local_shell_session.dart';
 import '../shell/process_title_monitor.dart';
+import 'close_confirm.dart';
 import 'session_layout.dart';
 
 /// Shared poller resolving each tab's foreground process name for titles.
@@ -198,7 +199,9 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     final group = state.tabs.firstWhereOrNull((tab) => tab.id == groupId);
     if (group == null || !group.panes.containsKey(paneId)) return;
     if (group.panes.length == 1) {
-      closeTab(groupId);
+      // The session already exited on its own; nothing is running to warn
+      // about, so skip the confirmation.
+      closeTab(groupId, confirm: false);
       return;
     }
     final nextGroup = _withoutPane(group, paneId);
@@ -276,11 +279,20 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     state = _rebuild(tabs: nextTabs);
   }
 
-  /// Closes a top-level tab and all panes it owns.
-  void closeTab(String tabId) {
+  /// Closes a top-level tab and all panes it owns. When any pane still runs
+  /// a program the user is asked to confirm first; [confirm] skips that for
+  /// sessions that already exited on their own.
+  Future<void> closeTab(String tabId, {bool confirm = true}) async {
     final index = state.tabs.indexWhere((tab) => tab.id == tabId);
     if (index < 0) return;
     final group = state.tabs[index];
+    if (confirm &&
+        !await confirmCloseSessions(
+          [for (final pane in group.panes.values) pane.tab.session],
+          id: 'close-running-tab:$tabId',
+        )) {
+      return;
+    }
     for (final pane in group.panes.values) {
       unawaited(pane.tab.session.dispose());
     }
@@ -297,21 +309,35 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
   }
 
   /// Closes one pane in the active top-level tab.
-  void closePane(String paneId) {
+  Future<void> closePane(String paneId) async {
     final groupId = state.selectedTabId;
-    if (groupId != null) closePaneInTab(groupId, paneId);
+    if (groupId != null) await closePaneInTab(groupId, paneId);
   }
 
   /// Closes [paneId] from any top-level tab.
-  void closePaneInTab(String groupId, String paneId) {
+  Future<void> closePaneInTab(String groupId, String paneId) async {
     final group = state.tabs.firstWhereOrNull((tab) => tab.id == groupId);
     if (group == null || !group.panes.containsKey(paneId)) return;
     if (group.panes.length == 1) {
-      closeTab(group.id);
+      await closeTab(group.id);
       return;
     }
-    unawaited(group.panes[paneId]!.tab.session.dispose());
-    state = _replaceGroup(_withoutPane(group, paneId));
+    final session = group.panes[paneId]!.tab.session;
+    if (!await confirmCloseSessions(
+      [session],
+      id: 'close-running-pane:$paneId',
+    )) {
+      return;
+    }
+    // The layout may have changed while the modal was open.
+    final current = state.tabs.firstWhereOrNull((tab) => tab.id == groupId);
+    if (current == null || !current.panes.containsKey(paneId)) return;
+    if (current.panes.length == 1) {
+      await closeTab(current.id);
+      return;
+    }
+    unawaited(current.panes[paneId]!.tab.session.dispose());
+    state = _replaceGroup(_withoutPane(current, paneId));
   }
 
   void setSplitRatio(String splitId, double ratio) {

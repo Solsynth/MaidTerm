@@ -1,15 +1,18 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:island_ui_foundation/island_ui_foundation.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:maidterm_app/shell/local_shell_session.dart';
 import 'package:maidterm_app/workspace/session_layout.dart';
 import 'package:maidterm_app/workspace/terminal_workspace.dart';
+import 'package:maidterm_app/settings/background_image.dart';
 import 'package:maidterm_app/workspace/terminal_workspace_page.dart';
 
 void main() {
@@ -519,4 +522,254 @@ void main() {
     expect(find.text('New Terminal'), findsOneWidget);
   });
 
+  // 1x1 transparent PNG: a real decodable file for the image provider.
+  const transparentPng = <int>[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+    0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x62, 0x00, 0x01, 0x00, 0x00,
+    0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+    0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+  ];
+
+  Widget buildWorkspaceWithImage(File imageFile) {
+    return ProviderScope(
+      overrides: [
+        localShellSessionFactoryProvider.overrideWithValue(
+          ({String? workingDirectory}) => LocalShellSession(
+            workingDirectory: workingDirectory,
+            autoStart: false,
+          ),
+        ),
+        maidTermBackgroundImageProvider.overrideWith((ref) async => imageFile),
+      ],
+      child: const MaterialApp(home: TerminalWorkspacePage()),
+    );
+  }
+
+  int imageLayers() => find
+      .byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            (widget.decoration as BoxDecoration?)?.image != null,
+      )
+      .evaluate()
+      .length;
+
+  testWidgets('background image fills the pane layout once, not chrome', (
+    tester,
+  ) async {
+    final imageFile = File(
+      '${Directory.systemTemp.path}/maidterm_bg_test.png',
+    );
+    await tester.binding.setSurfaceSize(const Size(1100, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({});
+    await tester.runAsync(() => imageFile.writeAsBytes(transparentPng));
+    addTearDown(() => tester.runAsync(() => imageFile.delete()));
+
+    await tester.pumpWidget(buildWorkspaceWithImage(imageFile));
+    await tester.pumpAndSettle();
+
+    // Exactly one image layer, on the ground that spans the whole layout.
+    expect(imageLayers(), 1);
+    final ground = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('workspace-ground')),
+    );
+    final groundImage = (ground.decoration as BoxDecoration).image!;
+    expect(groundImage.image, isA<FileImage>());
+    expect(groundImage.fit, BoxFit.cover);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('workspace-ground'))),
+      const Size(1100, 600),
+    );
+
+    // The terminal stays transparent so the image shows through, and the
+    // pane chrome turns translucent over it.
+    final terminal = tester.widget<maidterm.TerminalView>(
+      find.byType(maidterm.TerminalView),
+    );
+    expect(terminal.theme?.backgroundOpacity, 0);
+    expect(
+      tester
+          .widget<ColoredBox>(
+            find.byKey(const ValueKey('terminal-pane-backdrop')),
+          )
+          .color,
+      Colors.transparent,
+    );
+    final chrome = tester.widget<Container>(
+      find
+          .ancestor(
+            of: find.byKey(const ValueKey('terminal-pane-backdrop')),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    final chromeColor = (chrome.decoration! as BoxDecoration).color!;
+    expect(chromeColor.a, lessThan(1.0));
+
+    // The tab bar stays solid: the image never leaks into chrome.
+    final tabBar = tester.widget<Material>(
+      find.byKey(const ValueKey('workspace-tab-bar')),
+    );
+    expect(tabBar.color!.a, 1.0);
+  });
+
+  testWidgets('split panes share one background image', (tester) async {
+    final imageFile = File(
+      '${Directory.systemTemp.path}/maidterm_bg_split_test.png',
+    );
+    await tester.runAsync(() => imageFile.writeAsBytes(transparentPng));
+    addTearDown(() => tester.runAsync(() => imageFile.delete()));
+
+    await tester.pumpWidget(buildWorkspaceWithImage(imageFile));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
+    container
+        .read(terminalWorkspaceProvider.notifier)
+        .split(SplitAxis.horizontal);
+    await tester.pumpAndSettle();
+
+    // Still exactly one image across both panes — no per-pane copies.
+    expect(imageLayers(), 1);
+    expect(find.byType(maidterm.TerminalView), findsNWidgets(2));
+    for (final view in tester.widgetList<maidterm.TerminalView>(
+      find.byType(maidterm.TerminalView),
+    )) {
+      expect(view.theme?.backgroundOpacity, 0);
+    }
+    for (final backdrop in tester.widgetList<ColoredBox>(
+      find.byKey(const ValueKey('terminal-pane-backdrop')),
+    )) {
+      expect(backdrop.color, Colors.transparent);
+    }
+  });
+
+  testWidgets('disabled background image keeps chrome opaque', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'app.backgroundImageEnabled': false,
+    });
+    final imageFile = File(
+      '${Directory.systemTemp.path}/maidterm_bg_off_test.png',
+    );
+    await tester.runAsync(() => imageFile.writeAsBytes(transparentPng));
+    addTearDown(() => tester.runAsync(() => imageFile.delete()));
+
+    await tester.pumpWidget(buildWorkspaceWithImage(imageFile));
+    await tester.pumpAndSettle();
+
+    expect(imageLayers(), 0);
+    final terminal = tester.widget<maidterm.TerminalView>(
+      find.byType(maidterm.TerminalView),
+    );
+    expect(terminal.theme?.backgroundOpacity, 1);
+    expect(
+      tester
+          .widget<ColoredBox>(
+            find.byKey(const ValueKey('terminal-pane-backdrop')),
+          )
+          .color,
+      const Color(0xFFFAFAFA),
+    );
+  });
+
+  Widget buildWorkspaceWithRunningPrograms() {
+    return ProviderScope(
+      overrides: [
+        localShellSessionFactoryProvider.overrideWithValue(
+          ({String? workingDirectory}) => LocalShellSession(
+            workingDirectory: workingDirectory,
+            autoStart: false,
+            runningPrograms: () => true,
+          ),
+        ),
+      ],
+      child: MaterialApp(
+        navigatorKey: _confirmNavigatorKey,
+        home: const TerminalWorkspacePage(),
+      ),
+    );
+  }
+
+  testWidgets('closing a pane with running programs asks for confirmation', (
+    tester,
+  ) async {
+    IslandUIFoundation.configureNavigator(_confirmNavigatorKey);
+    await tester.pumpWidget(buildWorkspaceWithRunningPrograms());
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
+    container
+        .read(terminalWorkspaceProvider.notifier)
+        .split(SplitAxis.horizontal);
+    await tester.pumpAndSettle();
+
+    final secondPaneId = container
+        .read(terminalWorkspaceProvider)
+        .panes
+        .values
+        .last
+        .id;
+    container.read(terminalWorkspaceProvider.notifier).closePane(secondPaneId);
+    await tester.pumpAndSettle();
+
+    // The island_ui_foundation attention modal asks before closing.
+    expect(find.text('Close pane?'), findsOneWidget);
+
+    // Cancelling keeps the pane.
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(container.read(terminalWorkspaceProvider).panes, hasLength(2));
+
+    // Confirming closes it.
+    container.read(terminalWorkspaceProvider.notifier).closePane(secondPaneId);
+    await tester.pumpAndSettle();
+    expect(find.text('Close pane?'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(container.read(terminalWorkspaceProvider).panes, hasLength(1));
+  });
+
+  testWidgets('closing a tab with running panes asks for confirmation', (
+    tester,
+  ) async {
+    IslandUIFoundation.configureNavigator(_confirmNavigatorKey);
+    await tester.pumpWidget(buildWorkspaceWithRunningPrograms());
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
+    container
+        .read(terminalWorkspaceProvider.notifier)
+        .split(SplitAxis.horizontal);
+    await tester.pumpAndSettle();
+
+    container
+        .read(terminalWorkspaceProvider.notifier)
+        .closeTab(container.read(terminalWorkspaceProvider).selectedTabId!);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Close panes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(container.read(terminalWorkspaceProvider).tabs, hasLength(1));
+    expect(container.read(terminalWorkspaceProvider).panes, hasLength(2));
+
+    container
+        .read(terminalWorkspaceProvider.notifier)
+        .closeTab(container.read(terminalWorkspaceProvider).selectedTabId!);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(container.read(terminalWorkspaceProvider).tabs, isEmpty);
+  });
 }
+
+final _confirmNavigatorKey = GlobalKey<NavigatorState>();

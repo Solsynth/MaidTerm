@@ -4,6 +4,7 @@ import 'package:maidterm/maidterm.dart' as maidterm;
 
 import '../settings/terminal_color_scheme.dart';
 import '../settings/terminal_fonts.dart';
+import '../settings/background_image.dart';
 import '../settings/terminal_settings.dart';
 import 'terminal_workspace.dart';
 
@@ -87,7 +88,15 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
       }
     }
 
-    final transparent = settings?.transparentBackground ?? false;
+    // The stored image is the terminal backdrop: while one is enabled the
+    // surface stays transparent so the shared pane-layout image shows
+    // through, matching the transparent-background behavior.
+    final imageEnabled =
+        ref.watch(maidTermBackgroundImageProvider).asData?.value != null &&
+        (ref.watch(maidTermBackgroundImageEnabledProvider).asData?.value ??
+            true);
+    final transparent =
+        (settings?.transparentBackground ?? false) || imageEnabled;
     maidterm.TerminalTheme buildTheme(bool fullScreen) =>
         maidterm.TerminalTheme(
           palette: maidterm.ColorPalette(

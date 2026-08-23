@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:island_ui_foundation/island_ui_foundation.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:material_ui/material_ui.dart' hide GlobalMaterialLocalizations;
 import 'package:material_ui/material_ui.dart'
@@ -37,6 +38,8 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
   void initState() {
     super.initState();
     _menuChannel.setMethodCallHandler(_handleMenuCall);
+    // The attention-modal alert resolves its navigator from this key.
+    IslandUIFoundation.configureNavigator(_navigatorKey);
   }
 
   Future<void> _handleMenuCall(MethodCall call) async {
@@ -147,13 +150,13 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
           ): () =>
               _split(SplitAxis.vertical),
           const SingleActivator(LogicalKeyboardKey.keyW, meta: true): () =>
-              _closeSelectedTab(),
+              _closeFocusedPane(),
           const SingleActivator(
             LogicalKeyboardKey.keyW,
             meta: true,
             shift: true,
           ): () =>
-              _closeFocusedPane(),
+              _closeSelectedTab(),
         },
         child: const TerminalWorkspacePage(),
       ),
@@ -303,15 +306,15 @@ class _TitleBarMenuButton extends StatelessWidget {
         ),
         const PopupMenuDivider(),
         item(
-          _TitleBarMenuAction.closeTab,
-          'Close Tab',
-          Symbols.close,
-          _macOS ? '⌘W' : null,
-        ),
-        item(
           _TitleBarMenuAction.closePane,
           'Close Pane',
           Symbols.splitscreen,
+          _macOS ? '⌘W' : null,
+        ),
+        item(
+          _TitleBarMenuAction.closeTab,
+          'Close Tab',
+          Symbols.close,
           _macOS ? '⌘⇧W' : null,
         ),
         const PopupMenuDivider(),

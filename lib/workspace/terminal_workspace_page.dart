@@ -96,9 +96,20 @@ class _WorkspaceGround extends ConsumerWidget {
     return DecoratedBox(
       key: const ValueKey('workspace-ground'),
       decoration: BoxDecoration(
-        color: hasBackgroundImage
-            ? scheme.surfaceContainer.withValues(alpha: 0.64)
-            : scheme.surfaceContainer,
+        color: scheme.surfaceContainer,
+        // One image spans the whole pane layout: split panes share it
+        // instead of each rendering their own copy.
+        image: hasBackgroundImage
+            ? DecorationImage(
+                image: FileImage(backgroundImage),
+                fit: BoxFit.cover,
+                opacity: 0.18,
+                colorFilter: ColorFilter.mode(
+                  scheme.surface.withValues(alpha: 0.48),
+                  BlendMode.srcOver,
+                ),
+              )
+            : null,
       ),
       child: Padding(
         padding: const EdgeInsets.all(_workspaceGroundPadding),
@@ -271,7 +282,18 @@ class _TerminalPaneView extends ConsumerWidget {
         : brightness == Brightness.light
         ? settings.lightTheme
         : settings.darkTheme;
-    final transparent = settings?.transparentBackground ?? false;
+    final backgroundImage = ref
+        .watch(maidTermBackgroundImageProvider)
+        .asData
+        ?.value;
+    final backgroundImageEnabled =
+        ref.watch(maidTermBackgroundImageEnabledProvider).asData?.value ?? true;
+    final hasBackgroundImage =
+        backgroundImageEnabled && backgroundImage != null;
+    // An enabled image is the terminal backdrop; the surface stays
+    // transparent so the shared pane-layout image shows through.
+    final transparent =
+        (settings?.transparentBackground ?? false) || hasBackgroundImage;
     final terminal = selected == null
         ? ColoredBox(
             key: const ValueKey('terminal-pane-backdrop'),
@@ -319,7 +341,9 @@ class _TerminalPaneView extends ConsumerWidget {
           ref.read(terminalWorkspaceProvider.notifier).focusPane(paneId),
       child: Container(
         decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
+          color: hasBackgroundImage
+              ? scheme.surfaceContainerHigh.withValues(alpha: 0.64)
+              : scheme.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(_paneRadius),
           boxShadow: [
             BoxShadow(

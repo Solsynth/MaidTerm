@@ -31,8 +31,10 @@ class LocalShellSession {
     bool cursorBlink = true,
     maidterm.CursorShape cursorStyle = maidterm.CursorShape.block,
     ProcessTitleMonitor? processMonitor,
+    bool Function()? runningPrograms,
   }) : _fallbackTitle = _shellNameOf(shell ?? _defaultShell()),
-       _spawnCwd = _normalizeWorkingDirectory(workingDirectory) {
+       _spawnCwd = _normalizeWorkingDirectory(workingDirectory),
+       _runningProgramsCheck = runningPrograms {
     _monitor = processMonitor;
     _controller = maidterm.TerminalController(
       config: maidterm.TerminalConfig(
@@ -84,6 +86,9 @@ class LocalShellSession {
   bool _exitHandled = false;
   int? _ptyPid;
   ProcessTitleMonitor? _monitor;
+
+  /// Test seam: overrides the live process-table running-programs check.
+  final bool Function()? _runningProgramsCheck;
   late final maidterm.TerminalController _controller;
   final List<StreamSubscription<Object?>> _subscriptions = [];
 
@@ -123,6 +128,27 @@ class LocalShellSession {
 
   /// Live OSC 9;4 progress reported by the running program.
   ValueListenable<maidterm.TerminalProgress?> get progress => _progress;
+
+  /// Whether a program other than the idle shell is still running in this
+  /// session, per the latest process-table poll.
+  bool get hasRunningPrograms {
+    final check = _runningProgramsCheck;
+    if (check != null) return check();
+    final pid = _ptyPid;
+    final monitor = _monitor;
+    if (pid == null || monitor == null) return false;
+    return monitor.sessionHasRunningPrograms(pid);
+  }
+
+  /// Names of non-shell programs still alive in this session, from the
+  /// latest process-table poll. Empty when the session is idle or the
+  /// process table is unavailable.
+  List<String> get runningProgramNames {
+    final pid = _ptyPid;
+    final monitor = _monitor;
+    if (pid == null || monitor == null) return const [];
+    return monitor.runningProgramNames(pid);
+  }
 
   void _writeToPty(Uint8List bytes) {
     final pty = _pty;

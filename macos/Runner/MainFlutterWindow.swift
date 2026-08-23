@@ -35,8 +35,8 @@ class MainFlutterWindow: NSWindow {
     terminalMenu.addItem(menuItem("Split Pane Right", key: "d", target: target, action: #selector(TerminalMenuTarget.splitRight(_:))))
     terminalMenu.addItem(menuItem("Split Pane Below", key: "d", modifiers: [.command, .shift], target: target, action: #selector(TerminalMenuTarget.splitBelow(_:))))
     terminalMenu.addItem(.separator())
-    terminalMenu.addItem(menuItem("Close Tab", key: "w", target: target, action: #selector(TerminalMenuTarget.closeTab(_:))))
-    terminalMenu.addItem(menuItem("Close Pane", key: "w", modifiers: [.command, .shift], target: target, action: #selector(TerminalMenuTarget.closePane(_:))))
+    terminalMenu.addItem(menuItem("Close Pane", key: "w", target: target, action: #selector(TerminalMenuTarget.closePane(_:))))
+    terminalMenu.addItem(menuItem("Close Tab", key: "w", modifiers: [.command, .shift], target: target, action: #selector(TerminalMenuTarget.closeTab(_:))))
 
     let terminalItem = NSMenuItem()
     terminalItem.title = "Terminal"

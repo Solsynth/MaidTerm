@@ -92,6 +92,29 @@ ProcRow? _deepestDescendant(
   return best;
 }
 
+/// Sorted unique executable names of non-shell programs still alive in the
+/// session of [shellPid], per [table]. Every process on the shell's
+/// controlling terminal belongs to that session, so foreground and
+/// background children are both counted; the shell itself, nested shells,
+/// and zombies are ignored.
+List<String> runningProgramNamesInTable(
+  Map<int, ProcRow> table,
+  int shellPid,
+) {
+  final shell = table[shellPid];
+  if (shell == null) return const [];
+  final names = <String>{};
+  for (final row in table.values) {
+    if (row.tty != shell.tty || row.pid == shellPid) continue;
+    if (row.stat.startsWith('Z')) continue;
+    final name = row.comm.split(RegExp(r'[/\\]')).last;
+    if (isShellProcessName(name)) continue;
+    names.add(name);
+  }
+  final sorted = names.toList()..sort();
+  return sorted;
+}
+
 /// Shell executables whose idle presence means the tab should show the
 /// working directory instead of the process name.
 const _shellNames = {
@@ -165,6 +188,16 @@ final class ProcessTitleMonitor {
   /// most recent table refresh.
   String? foregroundName(int shellPid) =>
       foregroundProcessName(_table, shellPid);
+
+  /// Whether the session of [shellPid] still runs non-shell programs per
+  /// the most recent table refresh.
+  bool sessionHasRunningPrograms(int shellPid) =>
+      runningProgramNamesInTable(_table, shellPid).isNotEmpty;
+
+  /// Non-shell program names still alive in the session of [shellPid] per
+  /// the most recent table refresh.
+  List<String> runningProgramNames(int shellPid) =>
+      runningProgramNamesInTable(_table, shellPid);
 
   Future<void> _refresh() async {
     if (_refreshing) return;

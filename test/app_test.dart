@@ -69,7 +69,13 @@ void main() {
     await press(LogicalKeyboardKey.keyD, shift: true);
     expect(container.read(terminalWorkspaceProvider).panes, hasLength(3));
 
+    // Cmd+W closes the focused pane, not the whole tab group.
     await press(LogicalKeyboardKey.keyW);
+    expect(container.read(terminalWorkspaceProvider).tabs, hasLength(2));
+    expect(container.read(terminalWorkspaceProvider).panes, hasLength(2));
+
+    // Cmd+Shift+W closes the entire selected tab.
+    await press(LogicalKeyboardKey.keyW, shift: true);
     expect(container.read(terminalWorkspaceProvider).tabs, hasLength(1));
   });
 

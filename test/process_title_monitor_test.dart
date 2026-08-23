@@ -75,6 +75,42 @@ void main() {
     });
   });
 
+  group('runningProgramNamesInTable', () {
+    test('lists non-shell processes on the session tty, deduped and sorted', () {
+      final table = parsePsTable('''
+        100 1 ttys001 Ss -zsh
+        101 100 ttys001 S+ vim
+        102 100 ttys001 S sleep
+        103 100 ttys001 S node
+        104 100 ttys001 S node
+        200 1 ttys002 Ss bash
+      ''');
+      expect(runningProgramNamesInTable(table, 100), ['node', 'sleep', 'vim']);
+    });
+
+    test('ignores the shell itself, nested shells, and zombies', () {
+      final table = parsePsTable('''
+        100 1 ttys001 Ss -zsh
+        101 100 ttys001 S+ sh
+        102 101 ttys001 Z top
+      ''');
+      expect(runningProgramNamesInTable(table, 100), isEmpty);
+    });
+
+    test('reports background jobs even when the shell is foreground', () {
+      final table = parsePsTable('''
+        100 1 ttys001 Ss+ -zsh
+        101 100 ttys001 S sleep 100
+      ''');
+      expect(runningProgramNamesInTable(table, 100), ['sleep']);
+    });
+
+    test('returns empty for an unknown shell pid', () {
+      final table = parsePsTable('100 1 ttys001 Ss zsh\n');
+      expect(runningProgramNamesInTable(table, 99), isEmpty);
+    });
+  });
+
   group('abbreviateHome', () {
     test('abbreviates paths under home', () {
       expect(abbreviateHome('/Users/me', '/Users/me'), '~');
