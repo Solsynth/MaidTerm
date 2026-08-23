@@ -47,11 +47,13 @@ void main() {
     expect(terminal.theme?.fontSize, 18.0);
   });
 
-  testWidgets('keeps pane margins across alternate-screen switches', (
+  testWidgets('keeps margins until a TUI paints an almost full grid', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
       'terminal.normalPaneMargin': '{"left":1,"top":2,"right":3,"bottom":4}',
+      'terminal.fullScreenPaneMargin':
+          '{"left":5,"top":6,"right":7,"bottom":8}',
     });
 
     await tester.pumpWidget(buildWorkspace());
@@ -72,7 +74,14 @@ void main() {
     await tester.pump();
     expect(currentTerminal().padding, const EdgeInsets.fromLTRB(1, 2, 3, 4));
 
+    // A TUI canvas fill (explicit background across the grid) switches the
+    // pane into its full-screen margins.
+    session.session.setVisualFullScreen(true);
+    await tester.pump();
+    expect(currentTerminal().padding, const EdgeInsets.fromLTRB(5, 6, 7, 8));
+
     session.controller.write(utf8.encode('\x1b[?1049l'));
+    session.session.setVisualFullScreen(false);
     await tester.pump();
     expect(currentTerminal().padding, const EdgeInsets.fromLTRB(1, 2, 3, 4));
   });
@@ -355,7 +364,7 @@ void main() {
     expect(pane1.tab.session.controller.hasFocus, isFalse);
     expect(pane2.tab.session.controller.hasFocus, isTrue);
   });
-  testWidgets('keeps transparent background on alternate screens', (
+  testWidgets('keeps transparent background until a TUI paints its canvas', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
@@ -366,6 +375,9 @@ void main() {
 
     maidterm.TerminalView currentTerminal() => tester
         .widget<maidterm.TerminalView>(find.byType(maidterm.TerminalView));
+    ColoredBox backdrop() => tester.widget<ColoredBox>(
+      find.byKey(const ValueKey('terminal-pane-backdrop')),
+    );
     final page = find.byType(TerminalWorkspacePage);
     final container = ProviderScope.containerOf(tester.element(page));
     final session = container
@@ -374,27 +386,18 @@ void main() {
         .session;
 
     expect(currentTerminal().theme?.backgroundOpacity, 0);
-    expect(
-      tester
-          .widget<ColoredBox>(
-            find.byKey(const ValueKey('terminal-pane-backdrop')),
-          )
-          .color,
-      Colors.transparent,
-    );
+    expect(backdrop().color, Colors.transparent);
 
     session.controller.write(utf8.encode('\x1b[?1049h'));
     await tester.pump();
-
     expect(currentTerminal().theme?.backgroundOpacity, 0);
-    expect(
-      tester
-          .widget<ColoredBox>(
-            find.byKey(const ValueKey('terminal-pane-backdrop')),
-          )
-          .color,
-      Colors.transparent,
-    );
+    expect(backdrop().color, Colors.transparent);
+
+    // A TUI canvas fill forces an opaque terminal surface.
+    session.session.setVisualFullScreen(true);
+    await tester.pump();
+    expect(currentTerminal().theme?.backgroundOpacity, 1);
+    expect(backdrop().color, const Color(0xFFFAFAFA));
   });
 
   testWidgets('starts with one terminal filling the window', (tester) async {

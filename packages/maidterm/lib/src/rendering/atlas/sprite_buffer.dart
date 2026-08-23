@@ -310,6 +310,80 @@ class RectSprites {
   /// Whether any row has at least one active rect.
   bool get hasSprites => _activeSlots > 0;
 
+  /// Fraction of the grid covered by one explicit background color.
+  ///
+  /// Background runs never overlap, so their areas can be summed directly.
+  /// The weighted-majority pass finds the only color that can cover more than
+  /// half the grid without allocating a per-frame color map.
+  double dominantCoverage(double width, double height) {
+    if (width <= 0 || height <= 0 || _activeSlots == 0) return 0;
+
+    var candidate = 0;
+    var balance = 0.0;
+    for (var row = 0; row < _rowCount; row++) {
+      final base = row * _stride;
+      for (var i = 0; i < _rowCounts[row]; i++) {
+        final slot = base + i;
+        final area = _clippedArea(slot, width, height);
+        if (area == 0) continue;
+        final color = _colors[slot];
+        if (balance == 0) {
+          candidate = color;
+          balance = area;
+        } else if (candidate == color) {
+          balance += area;
+        } else if (balance > area) {
+          balance -= area;
+        } else {
+          candidate = color;
+          balance = area - balance;
+        }
+      }
+    }
+    if (balance == 0) return 0;
+
+    var covered = 0.0;
+    for (var row = 0; row < _rowCount; row++) {
+      final base = row * _stride;
+      for (var i = 0; i < _rowCounts[row]; i++) {
+        final slot = base + i;
+        if (_colors[slot] == candidate) {
+          covered += _clippedArea(slot, width, height);
+        }
+      }
+    }
+    return covered / (width * height);
+  }
+
+  double _clippedArea(int slot, double width, double height) {
+    final offset4 = slot * 4;
+    final rawLeft = _rects[offset4];
+    final rawTop = _rects[offset4 + 1];
+    final rawRight = _rects[offset4 + 2];
+    final rawBottom = _rects[offset4 + 3];
+    final left = rawLeft < 0
+        ? 0.0
+        : rawLeft > width
+        ? width
+        : rawLeft;
+    final top = rawTop < 0
+        ? 0.0
+        : rawTop > height
+        ? height
+        : rawTop;
+    final right = rawRight < 0
+        ? 0.0
+        : rawRight > width
+        ? width
+        : rawRight;
+    final bottom = rawBottom < 0
+        ? 0.0
+        : rawBottom > height
+        ? height
+        : rawBottom;
+    return right > left && bottom > top ? (right - left) * (bottom - top) : 0;
+  }
+
   /// Appends a colored rect to the current row.
   void add(double left, double top, double right, double bottom, int argb) {
     assert(_currentRow >= 0, 'add() called outside beginRow/endRow');

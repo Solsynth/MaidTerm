@@ -43,6 +43,7 @@ class LocalShellSession {
     );
     _displayTitle = ValueNotifier<String>(_fallbackTitle);
     _progress = ValueNotifier<maidterm.TerminalProgress?>(null);
+    _fullScreen = ValueNotifier<bool>(false);
     _controller.onBell = _handleBell;
     _controller.onNotification = _handleNotification;
     _controller.onProgress = _handleProgress;
@@ -100,6 +101,10 @@ class LocalShellSession {
 
   late final ValueNotifier<String> _displayTitle;
   late final ValueNotifier<maidterm.TerminalProgress?> _progress;
+  late final ValueNotifier<bool> _fullScreen;
+
+  /// Visual full-screen state reported by the terminal renderer.
+  ValueListenable<bool> get isFullScreen => _fullScreen;
 
   /// The controller bound to this session; pass to [maidterm.TerminalView].
   maidterm.TerminalController get controller => _controller;
@@ -153,6 +158,11 @@ class LocalShellSession {
 
   void _resizePty(int cols, int rows, int pixelWidth, int pixelHeight) {
     _pty?.resize(rows, cols, pixelWidth: pixelWidth, pixelHeight: pixelHeight);
+  }
+
+  /// Updates the visual full-screen state from the rendered terminal frame.
+  void setVisualFullScreen(bool value) {
+    if (!_disposed) _fullScreen.value = value;
   }
 
   void _onTitleChanged() {
@@ -235,6 +245,7 @@ class LocalShellSession {
     }
     _displayTitle.dispose();
     _progress.dispose();
+    _fullScreen.dispose();
     _controller.dispose();
   }
 

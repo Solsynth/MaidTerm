@@ -278,36 +278,39 @@ class _TerminalPaneView extends ConsumerWidget {
             key: const ValueKey('terminal-pane-backdrop'),
             color: transparent ? Colors.transparent : terminalScheme.background,
           )
-        : Stack(
-            alignment: Alignment.center,
-            children: [
-              Positioned.fill(
-                child: ColoredBox(
-                  key: const ValueKey('terminal-pane-backdrop'),
-                  color: transparent
-                      ? Colors.transparent
-                      : terminalScheme.background,
+        : ValueListenableBuilder<bool>(
+            valueListenable: selected.session.isFullScreen,
+            builder: (context, fullScreen, _) => Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(
+                  child: ColoredBox(
+                    key: const ValueKey('terminal-pane-backdrop'),
+                    color: fullScreen || !transparent
+                        ? terminalScheme.background
+                        : Colors.transparent,
+                  ),
                 ),
-              ),
-              Listener(
-                onPointerDown: (_) {
-                  ref
-                      .read(terminalWorkspaceProvider.notifier)
-                      .focusPane(paneId);
-                  selected.session.controller.requestFocus();
-                },
-                child: TerminalSurface(
-                  // Stable identity per pane: splitting or closing panes
-                  // restructures the layout tree, which would otherwise
-                  // destroy and recreate this terminal's element and tear
-                  // down the session's focus binding (the cursor would stop
-                  // tracking focus).
-                  key: GlobalObjectKey(workspace.panes[paneId]!.viewKey),
-                  tab: selected,
-                  autofocus: focused,
+                Listener(
+                  onPointerDown: (_) {
+                    ref
+                        .read(terminalWorkspaceProvider.notifier)
+                        .focusPane(paneId);
+                    selected.session.controller.requestFocus();
+                  },
+                  child: TerminalSurface(
+                    // Stable identity per pane: splitting or closing panes
+                    // restructures the layout tree, which would otherwise
+                    // destroy and recreate this terminal's element and tear
+                    // down the session's focus binding (the cursor would stop
+                    // tracking focus).
+                    key: GlobalObjectKey(workspace.panes[paneId]!.viewKey),
+                    tab: selected,
+                    autofocus: focused,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
 
     final scheme = Theme.of(context).colorScheme;
@@ -600,6 +603,9 @@ class _WorkspaceTabBar extends ConsumerWidget {
               scrollDirection: _vertical ? Axis.vertical : Axis.horizontal,
               padding: EdgeInsets.only(
                 top: _vertical ? _verticalTabStripTopMargin : 0,
+                // Tab entry itself owns extra 4px
+                left: 6,
+                right: 6,
               ),
               itemCount: workspace.tabs.length + 1,
               itemBuilder: (context, index) {
@@ -709,7 +715,7 @@ class _WorkspaceTabEntry extends StatelessWidget {
     final panes = tab.panes.values.toList();
     if (panes.length < 2) {
       return Padding(
-        padding: EdgeInsets.symmetric(horizontal: 4, vertical: verticalPadding),
+        padding: EdgeInsets.only(left: 4, right: 4, top: verticalPadding),
         child: _PaneTabChip(
           key: ValueKey('pane-tab-${panes.first.tab.id}'),
           tab: panes.first.tab,

@@ -136,14 +136,16 @@ class SettingsPage extends ConsumerWidget {
                   ),
                   _SettingsSection(
                     title: 'Pane margins',
-                    description: 'Set the terminal pane\'s left, top, right, and bottom margins.',
-                    child: _PaneMarginEditor(
-                      key: const ValueKey('pane-margin'),
-                      title: 'Terminal',
-                      margin: data.normalPaneMargin,
-                      onChanged: (value) => ref
+                    description: 'Set independent margins for normal output and terminal UIs that paint almost the full grid.',
+                    child: _PaneMarginSettings(
+                      normalMargin: data.normalPaneMargin,
+                      fullScreenMargin: data.fullScreenPaneMargin,
+                      onNormalChanged: (value) => ref
                           .read(terminalSettingsProvider.notifier)
                           .setNormalPaneMargin(value),
+                      onFullScreenChanged: (value) => ref
+                          .read(terminalSettingsProvider.notifier)
+                          .setFullScreenPaneMargin(value),
                     ),
                   ),
                   _SettingsSection(
@@ -354,6 +356,42 @@ class _BackgroundImageSettings extends ConsumerWidget {
         SnackBar(content: Text('Could not save background image: $error')),
       );
     }
+  }
+}
+
+class _PaneMarginSettings extends StatelessWidget {
+  const _PaneMarginSettings({
+    required this.normalMargin,
+    required this.fullScreenMargin,
+    required this.onNormalChanged,
+    required this.onFullScreenChanged,
+  });
+
+  final EdgeInsets normalMargin;
+  final EdgeInsets fullScreenMargin;
+  final ValueChanged<EdgeInsets> onNormalChanged;
+  final ValueChanged<EdgeInsets> onFullScreenChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _PaneMarginEditor(
+          key: const ValueKey('normal-pane-margin'),
+          title: 'Normal mode',
+          margin: normalMargin,
+          onChanged: onNormalChanged,
+        ),
+        const SizedBox(height: 20),
+        _PaneMarginEditor(
+          key: const ValueKey('fullscreen-pane-margin'),
+          title: 'Full-screen mode',
+          margin: fullScreenMargin,
+          onChanged: onFullScreenChanged,
+        ),
+      ],
+    );
   }
 }
 

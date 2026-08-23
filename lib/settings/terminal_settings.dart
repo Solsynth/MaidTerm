@@ -21,6 +21,7 @@ class TerminalSettings {
     this.cursorStyle = maidterm.CursorShape.block,
     this.shellPath,
     this.normalPaneMargin = const EdgeInsets.all(8),
+    this.fullScreenPaneMargin = EdgeInsets.zero,
     this.fontFamily = TerminalFonts.defaultFamily,
     this.lightTheme = TerminalColorSchemes.defaultLightScheme,
     this.darkTheme = TerminalColorSchemes.defaultScheme,
@@ -38,6 +39,9 @@ class TerminalSettings {
 
   /// Padding around normal shell output.
   final EdgeInsets normalPaneMargin;
+
+  /// Padding while an alternate screen paints an almost full-grid background.
+  final EdgeInsets fullScreenPaneMargin;
 
   /// Terminal font family (engine-registered name).
   final String fontFamily;
@@ -69,6 +73,7 @@ class TerminalSettings {
     maidterm.CursorShape? cursorStyle,
     String? shellPath,
     EdgeInsets? normalPaneMargin,
+    EdgeInsets? fullScreenPaneMargin,
     String? fontFamily,
     TerminalColorScheme? lightTheme,
     TerminalColorScheme? darkTheme,
@@ -83,6 +88,7 @@ class TerminalSettings {
     cursorStyle: cursorStyle ?? this.cursorStyle,
     shellPath: shellPath ?? this.shellPath,
     normalPaneMargin: normalPaneMargin ?? this.normalPaneMargin,
+    fullScreenPaneMargin: fullScreenPaneMargin ?? this.fullScreenPaneMargin,
     fontFamily: fontFamily ?? this.fontFamily,
     lightTheme: lightTheme ?? this.lightTheme,
     darkTheme: darkTheme ?? this.darkTheme,
@@ -105,6 +111,7 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
   static const _cursorStyleKey = 'terminal.cursorStyle';
   static const _shellPathKey = 'terminal.shellPath';
   static const _normalPaneMarginKey = 'terminal.normalPaneMargin';
+  static const _fullScreenPaneMarginKey = 'terminal.fullScreenPaneMargin';
   static const _fontFamilyKey = 'terminal.fontFamily';
   static const _lightThemeKey = 'terminal.lightTheme';
   static const _tabBarWidthKey = 'terminal.tabBarWidth';
@@ -129,6 +136,10 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
       normalPaneMargin: _decodePaneMargin(
         prefs.getString(_normalPaneMarginKey),
         const EdgeInsets.all(8),
+      ),
+      fullScreenPaneMargin: _decodePaneMargin(
+        prefs.getString(_fullScreenPaneMarginKey),
+        EdgeInsets.zero,
       ),
       fontFamily:
           prefs.getString(_fontFamilyKey) ?? TerminalFonts.defaultFamily,
@@ -162,6 +173,13 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
     await _update(state.value!.copyWith(normalPaneMargin: margin));
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_normalPaneMarginKey, _encodePaneMargin(margin));
+  }
+
+  Future<void> setFullScreenPaneMargin(EdgeInsets value) async {
+    final margin = _sanitizePaneMargin(value);
+    await _update(state.value!.copyWith(fullScreenPaneMargin: margin));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_fullScreenPaneMarginKey, _encodePaneMargin(margin));
   }
 
   Future<void> _update(TerminalSettings next) async {

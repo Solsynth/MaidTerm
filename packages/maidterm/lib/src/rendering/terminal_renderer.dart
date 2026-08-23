@@ -74,6 +74,10 @@ class TerminalRenderer extends LeafRenderObjectWidget {
   /// Visible link styling state prepared by the view layer.
   final LinkSnapshot linkSnapshot;
 
+  /// Called after an alternate-screen frame gains or loses a dominant
+  /// explicit background across most of the grid.
+  final ValueChanged<bool>? onVisualFullScreenChanged;
+
   /// Called when the terminal grid dimensions change during layout.
   ///
   /// Fires after the terminal has been resized. Use this to notify the
@@ -95,6 +99,7 @@ class TerminalRenderer extends LeafRenderObjectWidget {
     this.preeditText = '',
     this.linkSnapshot = .empty,
     this.onResize,
+    this.onVisualFullScreenChanged,
   });
 
   @override
@@ -110,7 +115,7 @@ class TerminalRenderer extends LeafRenderObjectWidget {
       preeditText: preeditText,
       linkSnapshot: linkSnapshot,
       renderObserver: renderObserver,
-    );
+    )..onVisualFullScreenChanged = onVisualFullScreenChanged;
   }
 
   @override
@@ -143,6 +148,7 @@ class TerminalRenderer extends LeafRenderObjectWidget {
       ..offset = offset
       ..metrics = metrics
       ..onResize = onResize
+      ..onVisualFullScreenChanged = onVisualFullScreenChanged
       ..renderObserver = renderObserver
       ..blinkVisible = blinkVisible
       ..preeditText = preeditText
@@ -186,6 +192,9 @@ class TerminalRenderBox extends RenderBox {
   Offset? _cursorMotionFrom;
   DateTime? _cursorMotionStartedAt;
   LinkSnapshot _linkSnapshot;
+  ValueChanged<bool>? _onVisualFullScreenChanged;
+  var _visualFullScreen = false;
+  var _visualFullScreenNotificationQueued = false;
 
   final TerminalPaintState _paintState;
   late final TerminalRenderPipeline _pipeline;
@@ -201,6 +210,7 @@ class TerminalRenderBox extends RenderBox {
     this._linkSnapshot = .empty,
     this._preeditText = '',
     this._onResize,
+    this._onVisualFullScreenChanged,
   }) : _paintState = TerminalPaintState(theme, metrics)
          ..blinkVisible = blinkVisible
          ..cursorFocused = _renderObserver.hasFocus {
@@ -314,6 +324,10 @@ class TerminalRenderBox extends RenderBox {
   }
 
   set onResize(OnResize? value) => _onResize = value;
+  set onVisualFullScreenChanged(ValueChanged<bool>? value) {
+    _onVisualFullScreenChanged = value;
+    if (_visualFullScreen) _queueVisualFullScreenNotification();
+  }
 
   set renderObserver(TerminalRenderObserver value) {
     if (_renderObserver == value) return;
@@ -655,7 +669,26 @@ class TerminalRenderBox extends RenderBox {
       preeditText: _preeditText,
       linkSnapshot: _linkSnapshot,
     );
+    _syncVisualFullScreen();
     _syncCursorMotion();
+  }
+
+  void _syncVisualFullScreen() {
+    final coverage = _pipeline.dominantBackgroundCoverage;
+    final threshold = _visualFullScreen ? 0.80 : 0.90;
+    final next = _terminal.activeScreen == .alternate && coverage >= threshold;
+    if (_visualFullScreen == next) return;
+    _visualFullScreen = next;
+    _queueVisualFullScreenNotification();
+  }
+
+  void _queueVisualFullScreenNotification() {
+    if (_visualFullScreenNotificationQueued) return;
+    _visualFullScreenNotificationQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _visualFullScreenNotificationQueued = false;
+      if (attached) _onVisualFullScreenChanged?.call(_visualFullScreen);
+    });
   }
 
   void _syncCursorMotion() {

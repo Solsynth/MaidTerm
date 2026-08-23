@@ -68,6 +68,12 @@ final class TerminalRenderPipeline {
 
   void refreshCursorGlyph() => _frameBuilder.refreshCursorGlyph();
 
+  /// Fraction of the terminal grid covered by one explicit background color.
+  double get dominantBackgroundCoverage => _sprites.background.dominantCoverage(
+    _state.cols * _state.metrics.cellWidth,
+    _state.rows * _state.metrics.cellHeight,
+  );
+
   /// Syncs terminal cells and render-only preedit state into paint buffers.
   ///
   /// [preeditText] does not enter libghostty state. The frame builder overlays

@@ -96,6 +96,10 @@ class TerminalView extends StatefulWidget {
   /// Callback checked before terminal shortcuts and input handling.
   final FocusOnKeyEventCallback? onKeyEvent;
 
+  /// Receives whether an alternate-screen frame has a dominant explicit
+  /// background covering most of the terminal grid.
+  final ValueChanged<bool>? onVisualFullScreenChanged;
+
   /// Raw TTF/OTF font file bytes for exact metric extraction.
   ///
   /// When provided, takes priority over automatic font resolution. The
@@ -116,6 +120,7 @@ class TerminalView extends StatefulWidget {
     this.focusNode,
     this.shortcuts,
     this.onKeyEvent,
+    this.onVisualFullScreenChanged,
     this.scrollPhysics,
     this.scrollController,
     this.autofocus = false,
@@ -343,6 +348,8 @@ class TerminalViewState extends State<TerminalView> {
                         blinkVisible: _blinkVisible,
                         linkSnapshot: _links.snapshot(),
                         onResize: _handleResize,
+                        onVisualFullScreenChanged:
+                            widget.onVisualFullScreenChanged,
                       ),
                     ),
                   ),

@@ -71,4 +71,15 @@ void main() {
     expect(s.progress.value, isNull);
     s.dispose();
   });
+  test('renderer reports drive the visual full-screen state', () {
+    final s = session();
+    expect(s.isFullScreen.value, isFalse);
+
+    s.setVisualFullScreen(true);
+    expect(s.isFullScreen.value, isTrue);
+
+    s.setVisualFullScreen(false);
+    expect(s.isFullScreen.value, isFalse);
+    s.dispose();
+  });
 }
