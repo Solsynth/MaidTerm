@@ -138,6 +138,7 @@ class TerminalViewState extends State<TerminalView> {
   late TerminalScrollController _scrollController;
   final _links = LinkInteraction();
   final _rendererKey = GlobalKey();
+  late final _FocusRenderObserver _renderObserver;
 
   Uint8List? _resolvedFontData;
   var _ownsFocusNode = false;
@@ -211,6 +212,7 @@ class TerminalViewState extends State<TerminalView> {
       _ownsFocusNode = widget.focusNode == null;
       _binding.attach(_focusNode, _scrollController);
     }
+    _renderObserver.update(_controller, _focusNode);
 
     if (widget.scrollController != oldWidget.scrollController) {
       _scrollController.removeListener(_onScrollChanged);
@@ -255,6 +257,7 @@ class TerminalViewState extends State<TerminalView> {
     _blinkTimer?.cancel();
     _controller.removeListener(_onControllerChanged);
     _binding.detach();
+    _renderObserver.dispose();
     if (_ownsFocusNode) _focusNode.dispose();
     _scrollController.removeListener(_onScrollChanged);
     if (_ownsScrollController) _scrollController.dispose();
@@ -268,7 +271,7 @@ class TerminalViewState extends State<TerminalView> {
     _binding = _asBinding(_controller);
 
     _focusNode = widget.focusNode ?? FocusNode();
-    _ownsFocusNode = widget.focusNode == null;
+    _renderObserver = _FocusRenderObserver(_controller, _focusNode);
 
     _theme = widget.theme ?? TerminalTheme.dark();
     _devicePixelRatio =
@@ -333,7 +336,7 @@ class TerminalViewState extends State<TerminalView> {
                         theme: _theme,
                         offset: offset,
                         metrics: _metrics,
-                        renderObserver: _controller,
+                        renderObserver: _renderObserver,
                         terminal: _binding.terminal,
                         renderCache: cache,
                         preeditText: _binding.preeditText,
@@ -544,5 +547,52 @@ class TerminalViewState extends State<TerminalView> {
       'Use the TerminalController() factory constructor.',
     );
     return controller as TerminalViewBinding;
+  }
+}
+
+final class _FocusRenderObserver implements TerminalRenderObserver {
+  _FocusRenderObserver(this._controller, this._focusNode) {
+    _controller.addListener(_notifyListeners);
+  }
+
+  TerminalController _controller;
+  FocusNode _focusNode;
+  final _listeners = <VoidCallback>[];
+
+  @override
+  bool get hasFocus => _focusNode.hasFocus;
+
+  void update(TerminalController controller, FocusNode focusNode) {
+    final controllerChanged = !identical(controller, _controller);
+    final focusNodeChanged = !identical(focusNode, _focusNode);
+    if (!controllerChanged && !focusNodeChanged) return;
+    if (controllerChanged) {
+      _controller.removeListener(_notifyListeners);
+      _controller = controller;
+      _controller.addListener(_notifyListeners);
+    }
+    _focusNode = focusNode;
+    _notifyListeners();
+  }
+
+  @override
+  void addListener(VoidCallback listener) {
+    if (!_listeners.contains(listener)) _listeners.add(listener);
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    _listeners.remove(listener);
+  }
+
+  void _notifyListeners() {
+    for (final listener in List<VoidCallback>.of(_listeners)) {
+      listener();
+    }
+  }
+
+  void dispose() {
+    _controller.removeListener(_notifyListeners);
+    _listeners.clear();
   }
 }

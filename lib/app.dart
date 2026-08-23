@@ -23,6 +23,7 @@ class MaidTermApp extends ConsumerStatefulWidget {
 }
 
 class _MaidTermAppState extends ConsumerState<MaidTermApp> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
   final _settingsOpen = ValueNotifier<bool>(false);
 
   @override
@@ -31,8 +32,8 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
     super.dispose();
   }
 
-  void _openSettings(BuildContext context) {
-    Navigator.of(context).push(
+  void _openSettings() {
+    _navigatorKey.currentState?.push(
       MaterialPageRoute<void>(
         settings: const RouteSettings(name: '/settings'),
         builder: (_) => const SettingsPage(),
@@ -47,6 +48,7 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
     final seedColor = settings?.seedColor ?? const Color(0xFF0F766E);
 
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'MaidTerm',
       debugShowCheckedModeBanner: false,
       theme: createMaidTermTheme(Brightness.light, seedColor: seedColor),
@@ -63,23 +65,23 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
       // app (all routes) is its child, so the title bar never disappears.
       // ignore: deprecated_member_use
       builder: (context, child) => MaterialUiCompatibilityBridge(
-        child: CallbackShortcuts(
-          bindings: {
-            const SingleActivator(LogicalKeyboardKey.comma, meta: true): () =>
-                _openSettings(context),
-            const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
-                ref.read(terminalWorkspaceProvider.notifier).openTerminal(),
-          },
-          child: ValueListenableBuilder<bool>(
-            valueListenable: _settingsOpen,
-            builder: (context, settingsOpen, _) => MaidTermWindowScaffold(
-              title: settingsOpen ? 'Settings' : 'MaidTerm',
-              child: MaidTermAppBackground(child: child!),
-            ),
+        child: ValueListenableBuilder<bool>(
+          valueListenable: _settingsOpen,
+          builder: (context, settingsOpen, _) => MaidTermWindowScaffold(
+            title: settingsOpen ? 'Settings' : 'MaidTerm',
+            child: MaidTermAppBackground(child: child!),
           ),
         ),
       ),
-      home: const TerminalWorkspacePage(),
+      home: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.comma, meta: true): () =>
+              _openSettings(),
+          const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
+              ref.read(terminalWorkspaceProvider.notifier).openTerminal(),
+        },
+        child: const TerminalWorkspacePage(),
+      ),
     );
   }
 }

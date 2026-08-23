@@ -110,8 +110,8 @@ void main() {
     const expectedSizes = {
       'top': Size(1100, 600),
       'bottom': Size(1100, 600),
-      'left': Size(916, 640),
-      'right': Size(916, 640),
+      'left': Size(918, 640),
+      'right': Size(918, 640),
     };
     for (final entry in expectedSizes.entries) {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -130,6 +130,56 @@ void main() {
     }
   });
 
+  testWidgets('keeps top tab bar expanded at narrow widths', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(560, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({'terminal.tabBarPosition': 'top'});
+
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Split right'), findsOneWidget);
+    expect(find.byTooltip('Settings (Cmd+,)'), findsOneWidget);
+    expect(find.byTooltip('Collapse tab bar'), findsNothing);
+  });
+
+  testWidgets('compacts the vertical tab bar while resizing', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({
+      'terminal.tabBarPosition': 'left',
+      'terminal.tabBarWidth': 240.0,
+    });
+
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+
+    final tabBar = find.byKey(const ValueKey('workspace-tab-bar'));
+    expect(tester.getSize(tabBar), const Size(240, 640));
+    expect(find.byTooltip('Split right'), findsOneWidget);
+
+    await tester.drag(
+      find.byKey(const ValueKey('tab-bar-resize-handle')),
+      const Offset(-500, 0),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(tester.getSize(tabBar), const Size(36, 640));
+    expect(find.byTooltip('Split right'), findsNothing);
+    expect(find.byTooltip('Settings (Cmd+,)'), findsNothing);
+    expect(find.byTooltip('New tab'), findsOneWidget);
+
+    await tester.drag(
+      find.byKey(const ValueKey('tab-bar-resize-handle')),
+      const Offset(220, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(tabBar).width, greaterThan(36));
+    expect(find.byTooltip('Split right'), findsOneWidget);
+  });
+
   testWidgets('resizes the vertical tab bar sidebar', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1100, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -139,7 +189,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
-      const Size(916, 640),
+      const Size(918, 640),
     );
 
     await tester.drag(
@@ -150,7 +200,7 @@ void main() {
 
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
-      const Size(856, 640),
+      const Size(858, 640),
     );
     await tester.pumpAndSettle();
     expect(
@@ -164,7 +214,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
-      const Size(856, 640),
+      const Size(858, 640),
     );
   });
 

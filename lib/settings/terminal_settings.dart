@@ -266,7 +266,7 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
 
 double _sanitizeTabBarWidth(double value) {
   if (!value.isFinite) return 180.0;
-  return value.clamp(140.0, 360.0).toDouble();
+  return value.clamp(36.0, 360.0).toDouble();
 }
 
 EdgeInsets _sanitizePaneMargin(EdgeInsets value) {

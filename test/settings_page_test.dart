@@ -60,6 +60,43 @@ void main() {
     expect(prefs.getBool('terminal.cursorBlink'), isTrue);
   });
 
+  testWidgets('tab bar position control persists selection', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: [
+            ...material_ui.GlobalMaterialLocalizations.delegates,
+            GlobalMaterialLocalizations.delegate,
+          ],
+          home: const SettingsPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Tab bar'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Left').first);
+    await tester.pumpAndSettle();
+
+    final settings = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsPage)),
+    ).read(terminalSettingsProvider).value!;
+    expect(settings.tabBarPosition, TabBarPosition.left);
+    expect(
+      (await SharedPreferences.getInstance()).getString(
+        'terminal.tabBarPosition',
+      ),
+      'left',
+    );
+  });
+
   testWidgets('edits and persists both pane margin modes', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
