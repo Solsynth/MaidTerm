@@ -200,7 +200,7 @@ class MultiWindowCoordinator {
           'tab': tab.toJson(),
         });
         if (accepted == true) {
-          _detachTransferredTab(tab.id);
+          _detachTransferredTab(tab.id, suppressEmptyWindowClose: false);
           return true;
         }
       } on Object {
@@ -237,7 +237,7 @@ class MultiWindowCoordinator {
       'tab': transfer.toJson(),
     });
     if (accepted != true) return false;
-    _detachTransferredTab(transfer.id);
+    _detachTransferredTab(transfer.id, suppressEmptyWindowClose: false);
     return true;
   }
 
@@ -254,7 +254,14 @@ class MultiWindowCoordinator {
     _detachTransferredTab(tab.id);
   }
 
-  void _detachTransferredTab(String tabId) {
+  void _detachTransferredTab(
+    String tabId, {
+    bool suppressEmptyWindowClose = true,
+  }) {
+    if (!suppressEmptyWindowClose) {
+      _ref.read(terminalWorkspaceProvider.notifier).detachTab(tabId);
+      return;
+    }
     _suppressEmptyWindowClose = true;
     try {
       _ref.read(terminalWorkspaceProvider.notifier).detachTab(tabId);
