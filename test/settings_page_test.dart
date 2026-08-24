@@ -8,11 +8,32 @@ import 'package:material_ui/material_ui.dart'
     show GlobalMaterialLocalizations;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-
+import 'dart:convert';
+import 'dart:io';
 import 'package:maidterm_app/settings/about_page.dart';
 import 'package:maidterm_app/settings/settings_page.dart';
 import 'package:maidterm_app/settings/terminal_fonts.dart';
 import 'package:maidterm_app/settings/terminal_settings.dart';
+
+/// Loads the real translation JSON files synchronously from disk.
+///
+/// easy_localization's default [RootBundleAssetLoader] goes through the
+/// platform messenger, which does not progress in the fake-async zone of a
+/// widget test once a previous test's EasyLocalization tree has been torn
+/// down. Reading the files directly keeps the tests hermetic and real.
+class _TestAssetLoader extends AssetLoader {
+  final String basePath;
+  const _TestAssetLoader(this.basePath);
+
+  @override
+  Future<Map<String, dynamic>?> load(String path, Locale locale) async {
+    final file = File(
+      '$basePath/${locale.toStringWithSeparator(separator: '-')}.json',
+    );
+    if (!file.existsSync()) return null;
+    return jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+  }
+}
 
 void main() {
   setUpAll(() async {
@@ -23,17 +44,26 @@ void main() {
   });
 
   Widget buildSettings(Widget child) => EasyLocalization(
-    supportedLocales: const [Locale('en', 'US')],
+    supportedLocales: const [
+      Locale('en', 'US'),
+      Locale('zh', 'CN'),
+      Locale('zh', 'TW'),
+    ],
     path: 'assets/translations',
     fallbackLocale: const Locale('en', 'US'),
     useFallbackTranslations: true,
+    assetLoader: const _TestAssetLoader('assets/translations'),
     child: ProviderScope(
-      child: MaterialApp(
-        localizationsDelegates: [
-          ...material_ui.GlobalMaterialLocalizations.delegates,
-          GlobalMaterialLocalizations.delegate,
-        ],
-        home: child,
+      child: Builder(
+        builder: (context) => MaterialApp(
+          localizationsDelegates: [
+            ...context.localizationDelegates,
+            ...material_ui.GlobalMaterialLocalizations.delegates,
+          ],
+          locale: context.locale,
+          supportedLocales: context.supportedLocales,
+          home: child,
+        ),
       ),
     ),
   );
@@ -256,5 +286,27 @@ void main() {
       const Color(0xFFB3261E),
     );
     expect(find.byType(AlertDialog), findsNothing);
+  });
+  testWidgets('language dropdown switches locale and persists', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildSettings(const SettingsPage()));
+    await tester.pumpAndSettle();
+
+    // The dropdown starts on the device locale (en-US).
+    expect(find.text('English'), findsOneWidget);
+    expect(find.text('settingsTitle'.tr()), findsOneWidget);
+
+    await tester.tap(find.text('English'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('简体中文').last);
+    await tester.pumpAndSettle();
+
+    // The page re-renders in Chinese; the raw key is gone.
+    expect(find.text('设置'), findsOneWidget);
+    expect(find.text('settingsTitle'), findsNothing);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('locale'), 'zh_CN');
   });
 }

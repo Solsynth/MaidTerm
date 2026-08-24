@@ -60,6 +60,33 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ),
                   _SettingsSection(
+                    title: 'settingsLanguage'.tr(),
+                    description: 'settingsLanguageDescription'.tr(),
+                    child: DropdownButton<Locale>(
+                      value: context.locale,
+                      isExpanded: true,
+                      items: const [
+                        DropdownMenuItem(
+                          value: Locale('en', 'US'),
+                          child: Text('English'),
+                        ),
+                        DropdownMenuItem(
+                          value: Locale('zh', 'CN'),
+                          child: Text('简体中文'),
+                        ),
+                        DropdownMenuItem(
+                          value: Locale('zh', 'TW'),
+                          child: Text('繁體中文'),
+                        ),
+                      ],
+                      onChanged: (locale) {
+                        if (locale != null) {
+                          context.setLocale(locale);
+                        }
+                      },
+                    ),
+                  ),
+                  _SettingsSection(
                     title: 'settingsBackgroundImage'.tr(),
                     description: 'settingsBackgroundImageDescription'.tr(),
                     child: const _BackgroundImageSettings(),

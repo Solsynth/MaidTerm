@@ -6,12 +6,33 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:maidterm_app/app.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'dart:convert';
+import 'dart:io';
 import 'package:maidterm_app/workspace/terminal_workspace.dart';
 import 'package:maidterm_app/shell/local_shell_session.dart';
 
 import 'package:maidterm_app/workspace/terminal_workspace_page.dart';
 import 'package:maidterm_app/settings/settings_page.dart';
+
+/// Loads the real translation JSON files synchronously from disk.
+///
+/// easy_localization's default [RootBundleAssetLoader] goes through the
+/// platform messenger, which does not progress in the fake-async zone of a
+/// widget test once a previous test's EasyLocalization tree has been torn
+/// down. Reading the files directly keeps the tests hermetic and real.
+class _TestAssetLoader extends AssetLoader {
+  final String basePath;
+  const _TestAssetLoader(this.basePath);
+
+  @override
+  Future<Map<String, dynamic>?> load(String path, Locale locale) async {
+    final file = File(
+      '$basePath/${locale.toStringWithSeparator(separator: '-')}.json',
+    );
+    if (!file.existsSync()) return null;
+    return jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+  }
+}
 
 void main() {
   setUpAll(() async {
@@ -27,6 +48,7 @@ void main() {
       path: 'assets/translations',
       fallbackLocale: const Locale('en', 'US'),
       useFallbackTranslations: true,
+      assetLoader: const _TestAssetLoader('assets/translations'),
       child: ProviderScope(
         overrides: [
           localShellSessionFactoryProvider.overrideWithValue(

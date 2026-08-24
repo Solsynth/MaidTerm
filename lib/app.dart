@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:island_ui_foundation/island_ui_foundation.dart';
@@ -104,11 +103,11 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
       darkTheme: createMaidTermTheme(Brightness.dark, seedColor: seedColor),
       themeMode: themeMode,
       localizationsDelegates: [
+        ...context.localizationDelegates,
         ...material_ui.GlobalMaterialLocalizations.delegates,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
       ],
+      locale: context.locale,
+      supportedLocales: context.supportedLocales,
       navigatorObservers: [_SettingsTitleObserver(_settingsOpen)],
       // The frame is the single page of an outer Navigator so its chrome —
       // the burger tooltip and popup menu — have an Overlay and Navigator
