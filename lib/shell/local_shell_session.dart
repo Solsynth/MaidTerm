@@ -39,6 +39,7 @@ class LocalShellSession {
     String? Function()? foregroundProgramName,
   }) : _fallbackTitle = _shellNameOf(shell ?? _defaultShell()),
        _spawnCwd = _normalizeWorkingDirectory(workingDirectory),
+       _attachedSession = sessionId != null,
        _runningProgramsCheck = runningPrograms,
        _foregroundProgramNameCheck = foregroundProgramName {
     _monitor = processMonitor;
@@ -84,14 +85,20 @@ class LocalShellSession {
       monitor.track(_ptyPid!);
     }
   }
-
   Pty? _pty;
+  final bool _attachedSession;
+
+  /// Stable native session ID used for cross-window attachment.
+  int? get sessionId => _pty?.sessionId;
+
+  /// Re-emits the destination viewport size to an attached PTY.
+  void refreshResize() {
+    if (_attachedSession) _controller.refreshResize();
+  }
 
   /// Called when the shell process exits on its own.
   VoidCallback? onExit;
 
-  /// Stable native session ID used for cross-window attachment.
-  int? get sessionId => _pty?.sessionId;
   bool _disposed = false;
   bool _exitHandled = false;
   int? _ptyPid;

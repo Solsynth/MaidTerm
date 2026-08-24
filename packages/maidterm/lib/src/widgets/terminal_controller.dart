@@ -52,8 +52,15 @@ abstract class TerminalController extends ChangeNotifier
   /// Called when the working directory changes. Read [pwd] for the value.
   VoidCallback? onPwdChanged;
 
-  /// Called when the grid dimensions change. Forward to your backend.
+  /// Called when the terminal grid dimensions change. Forward to your backend.
   OnResize? onResize;
+
+  /// Re-emits the most recently measured viewport size to the backend.
+  ///
+  /// This is useful after reconnecting a frontend to an existing terminal
+  /// process: the viewport may have the same grid size while the PTY still
+  /// needs a resize notification to redraw its UI.
+  void refreshResize();
 
   /// Creates a controller with the given [config].
   ///

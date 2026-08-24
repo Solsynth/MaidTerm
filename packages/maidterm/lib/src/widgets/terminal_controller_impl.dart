@@ -407,6 +407,21 @@ class TerminalControllerImpl extends TerminalController
   }
 
   @override
+  void refreshResize() {
+    if (_lastCols <= 0 || _lastRows <= 0) return;
+    final cellWidthPx = (_lastMetrics.cellWidth * _lastDevicePixelRatio)
+        .round();
+    final cellHeightPx = (_lastMetrics.cellHeight * _lastDevicePixelRatio)
+        .round();
+    onResize?.call(
+      _lastCols,
+      _lastRows,
+      _lastCols * cellWidthPx,
+      _lastRows * cellHeightPx,
+    );
+  }
+
+  @override
   void updatePointerPosition(Offset position) {
     _lastPointerPosition = position;
   }

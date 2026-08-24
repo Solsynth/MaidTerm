@@ -18,7 +18,7 @@
 #include "include/dart_api_dl.h"
 #include "include/dart_native_api.h"
 
-#define PTY_SESSION_HISTORY_LIMIT (64 * 1024)
+#define PTY_SESSION_HISTORY_LIMIT (1024 * 1024)
 
 typedef struct PtySubscriber {
     Dart_Port stdout_port;
@@ -341,8 +341,10 @@ FFI_PLUGIN_EXPORT int pty_session_attach(uint64_t session_id, Dart_Port stdout_p
     subscriber->exit_port = exit_port;
     subscriber->next = session->subscribers;
     session->subscribers = subscriber;
+    static const uint8_t history_prefix[] = {0x1b, 0x63};
     if (session->history_length > 0 &&
-        !post_output(stdout_port, session->history, session->history_length)) {
+        (!post_output(stdout_port, history_prefix, sizeof(history_prefix)) ||
+         !post_output(stdout_port, session->history, session->history_length))) {
         session->subscribers = subscriber->next;
         free(subscriber);
         pthread_mutex_unlock(&session->mutex);

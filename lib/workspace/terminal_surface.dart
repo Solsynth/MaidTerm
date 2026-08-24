@@ -30,9 +30,7 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
     super.initState();
     _focusNode = FocusNode(debugLabel: 'terminal-input')
       ..addListener(_onFocusChanged);
-    if (widget.autofocus) {
-      _requestFocusAfterBuild();
-    }
+    _requestFocusAfterBuild();
   }
 
   void _onFocusChanged() {
@@ -41,18 +39,19 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
 
   void _requestFocusAfterBuild() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.autofocus) {
+      if (!mounted) return;
+      if (widget.autofocus) {
         _focusNode.requestFocus();
         widget.tab.session.controller.requestFocus();
       }
+      widget.tab.session.refreshResize();
     });
   }
 
   @override
   void didUpdateWidget(TerminalSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.autofocus &&
-        (!oldWidget.autofocus || oldWidget.tab.id != widget.tab.id)) {
+    if (oldWidget.tab.id != widget.tab.id) {
       _requestFocusAfterBuild();
     }
   }
