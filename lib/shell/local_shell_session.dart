@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_pty/flutter_pty.dart';
+import 'package:maidpty/maidpty.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
 import 'package:window_manager/window_manager.dart';
 
@@ -67,7 +67,7 @@ class LocalShellSession {
             rows: 24,
             columns: 80,
             workingDirectory: _spawnCwd,
-            // flutter_pty only forwards a fixed env set; COLORTERM must be opt-in
+            // maidpty only forwards a fixed env set; COLORTERM must be opt-in
             // or truecolor clients (fastfetch, vim, bat) silently downgrade.
             environment: const {
               'TERM': 'xterm-256color',

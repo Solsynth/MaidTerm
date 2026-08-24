@@ -24,11 +24,11 @@ MaidTerm app (this repository)
 ├── lib/settings    — theme, font, and behavior settings
 └── packages/
     ├── maidterm    — the terminal engine (emulation + rendering)
-    └── flutter_pty — PTY plugin used for local shell sessions
+    └── maidpty     — PTY plugin used for local shell sessions
 ```
 
 The app is the thin product layer: it spawns shells with
-`flutter_pty`, feeds PTY output into a `TerminalController`, and renders the
+`maidpty`, feeds PTY output into a `TerminalController`, and renders the
 result through `TerminalView`. All terminal behavior — escape sequence
 handling, graphics protocols, input encoding, and painting — lives in the
 `maidterm` engine package.
@@ -39,7 +39,7 @@ handling, graphics protocols, input encoding, and painting — lives in the
 - [maidterm](packages/maidterm) — terminal engine based on
   [libghostty](https://github.com/elias8/libghostty) (Dart FFI bindings to
   Ghostty's Zig-based `libghostty-vt` emulator core)
-- [flutter_pty](packages/flutter_pty) — PTY sessions
+- [maidpty](packages/maidpty) — PTY sessions
 - [hooks_riverpod](https://pub.dev/packages/hooks_riverpod) — state
 - [island_ui_foundation](https://src.solsynth.dev/SoSYS/Solian) /
   [material_ui](https://pub.dev/packages/material_ui) — theming and widgets

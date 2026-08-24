@@ -19,7 +19,7 @@ analyzer:
     - macos/**
     - linux/**
     # Vendored packages are analyzed upstream; skip lint noise here.
-    - packages/flutter_pty/**
+    - packages/maidpty/**
 
 linter:
   # The lint rules applied to this project can be customized in the

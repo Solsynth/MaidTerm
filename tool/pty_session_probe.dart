@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_pty/flutter_pty.dart';
+import 'package:maidpty/maidpty.dart';
 
 Future<void> main() async {
   final first = Pty.start(

@@ -1,0 +1,30 @@
+# Run with `dart run ffigen --config ffigen.yaml`.
+name: MaidPtyBindings
+
+description: |
+  Bindings for `src/maidpty.h`.
+
+  Regenerate bindings with `dart run ffigen --config ffigen.yaml`.
+
+output: "lib/src/maidpty_bindings_generated.dart"
+
+headers:
+  entry-points:
+    - "src/maidpty.h"
+  include-directives:
+    - "src/maidpty.h"
+    - "src/include/dart_api_dl.h"
+
+functions:
+  includes:
+    - Dart_InitializeApiDL
+
+preamble: |
+  // ignore_for_file: always_specify_types
+  // ignore_for_file: camel_case_types
+  // ignore_for_file: constant_identifier_names
+  // ignore_for_file: non_constant_identifier_names
+
+comments:
+  style: any
+  length: full

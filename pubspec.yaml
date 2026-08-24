@@ -12,8 +12,8 @@ dependencies:
   cupertino_icons: ^1.0.9
   easy_localization: ^3.0.8
   file_picker: ^11.0.3
-  flutter_pty:
-    path: packages/flutter_pty
+  maidpty:
+    path: packages/maidpty
   flutter_local_notifications: ^22.3.0
   island_ui_foundation:
     git:
