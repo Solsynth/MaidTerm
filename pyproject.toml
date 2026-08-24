@@ -1,0 +1,17 @@
+[project]
+name = "maidterm"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "LittleSheep", email = "hi@littlesheep.me" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+maidterm = "maidterm:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
