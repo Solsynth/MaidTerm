@@ -42,6 +42,37 @@ void main() {
     expect(s.title.value, '/tmp/x');
     s.dispose();
   });
+  test('title reverts to the working directory when its owner program exits',
+      () {
+    var foreground = 'vim';
+    final s = LocalShellSession(
+      autoStart: false,
+      foregroundProgramName: () => foreground,
+    );
+    // A running program owns the title while it is the foreground.
+    s.controller.write(utf8.encode('\x1b]2;vim notes\x07'));
+    expect(s.title.value, 'vim notes');
+    // The program exits and the shell takes the foreground; the next refresh
+    // drops the stale title and falls back to the shell's working directory.
+    foreground = 'zsh';
+    s.controller.write(utf8.encode('\x1b]7;file:///tmp/repo\x07'));
+    expect(s.title.value, '/tmp/repo');
+    s.dispose();
+  });
+
+  test('a shell-set title persists while the shell stays foreground', () {
+    var foreground = 'zsh';
+    final s = LocalShellSession(
+      autoStart: false,
+      foregroundProgramName: () => foreground,
+    );
+    s.controller.write(utf8.encode('\x1b]2;user@host: ~/repo\x07'));
+    expect(s.title.value, 'user@host: ~/repo');
+    // The shell keeps the foreground; a refresh leaves the shell's title.
+    s.controller.write(utf8.encode('\x1b]7;file:///tmp/repo\x07'));
+    expect(s.title.value, 'user@host: ~/repo');
+    s.dispose();
+  });
 
   test('working directory tracks the shell-reported OSC 7 path', () {
     final s = LocalShellSession(

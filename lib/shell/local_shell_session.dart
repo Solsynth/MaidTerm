@@ -19,7 +19,10 @@ import 'package:maidterm_app/shell/process_title_monitor.dart';
 ///
 /// The display title (see [title]) follows the terminal app's OSC 0/2 title,
 /// the foreground process name from [ProcessTitleMonitor], or the working
-/// directory (OSC 7, falling back to the spawn directory) for shells.
+/// directory (OSC 7, falling back to the spawn directory) for shells. The
+/// OSC title is scoped to the program that set it: when that program exits
+/// and the shell takes the foreground, the title reverts to the shell's
+/// working directory instead of sticking.
 ///
 /// Set [autoStart] to false to construct the session without spawning a
 /// shell (used by widget tests, where plugin frameworks are not linked).
@@ -32,9 +35,11 @@ class LocalShellSession {
     maidterm.CursorShape cursorStyle = maidterm.CursorShape.block,
     ProcessTitleMonitor? processMonitor,
     bool Function()? runningPrograms,
+    String? Function()? foregroundProgramName,
   }) : _fallbackTitle = _shellNameOf(shell ?? _defaultShell()),
        _spawnCwd = _normalizeWorkingDirectory(workingDirectory),
-       _runningProgramsCheck = runningPrograms {
+       _runningProgramsCheck = runningPrograms,
+       _foregroundProgramNameCheck = foregroundProgramName {
     _monitor = processMonitor;
     _controller = maidterm.TerminalController(
       config: maidterm.TerminalConfig(
@@ -89,11 +94,16 @@ class LocalShellSession {
 
   /// Test seam: overrides the live process-table running-programs check.
   final bool Function()? _runningProgramsCheck;
+  final String? Function()? _foregroundProgramNameCheck;
   late final maidterm.TerminalController _controller;
   final List<StreamSubscription<Object?>> _subscriptions = [];
 
   /// OSC 0/2 title set by the running program; empty until one is set.
   String _oscTitle = '';
+  /// Foreground program that set [_oscTitle], so the title reverts when that
+  /// program exits and the shell takes the foreground. Null while the owner
+  /// is unknown or the title came from the shell.
+  String? _oscTitleOwner;
 
   /// Working directory reported by the shell (OSC 7); empty until reported.
   String _pwd = '';
@@ -193,17 +203,33 @@ class LocalShellSession {
 
   void _onTitleChanged() {
     _oscTitle = _controller.title;
+    // Re-derive ownership from the foreground on the next refresh; a stale
+    // process table cannot be trusted in the instant after a title write.
+    _oscTitleOwner = null;
     _refreshTitle();
   }
 
   void _refreshTitle() {
+    final foreground = _currentForegroundName();
     final appTitle = _oscTitle.trim();
     if (appTitle.isNotEmpty) {
-      _displayTitle.value = appTitle;
-      return;
+      if (foreground != null && !isShellProcessName(foreground)) {
+        // A non-shell program is the foreground; it owns the OSC title.
+        _oscTitleOwner = foreground;
+        _displayTitle.value = appTitle;
+        return;
+      }
+      // The foreground is a shell or unknown. A title owned by the shell
+      // stays; a title owned by a program that since left is dropped so the
+      // fallback (process name / working directory) resumes.
+      final owner = _oscTitleOwner;
+      if (owner == null || isShellProcessName(owner)) {
+        _displayTitle.value = appTitle;
+        return;
+      }
+      _oscTitle = '';
+      _oscTitleOwner = null;
     }
-    final pid = _ptyPid;
-    final foreground = pid == null ? null : _monitor?.foregroundName(pid);
     if (foreground != null && !isShellProcessName(foreground)) {
       _displayTitle.value = foreground.split(RegExp(r'[/\\]')).last;
       return;
@@ -215,6 +241,16 @@ class LocalShellSession {
       cwd,
       Platform.environment['HOME'] ?? '',
     );
+  }
+
+  /// The foreground program of the session, from the seam when set, else the
+  /// most recent process-table poll.
+  String? _currentForegroundName() {
+    final check = _foregroundProgramNameCheck;
+    if (check != null) return check();
+    final pid = _ptyPid;
+    if (pid == null) return null;
+    return _monitor?.foregroundName(pid);
   }
 
   /// OSC 7 payloads are `file://host/path` URLs; keep only the path part.
