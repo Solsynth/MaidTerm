@@ -492,8 +492,23 @@ class TerminalControllerImpl extends TerminalController
   void paste(String text) {
     if (text.isEmpty) return;
     final bracketed = terminal.modeGet(const .bracketedPaste());
-    _emitOutput(pasteEncode(text, bracketed: bracketed));
+    _emitOutput(
+      pasteEncode(_normalizePasteNewlines(text), bracketed: bracketed),
+    );
     _scrollToBottomOnInput();
+  }
+
+  /// Normalizes clipboard line endings to LF before paste encoding.
+  ///
+  /// Windows clipboards supply CRLF (`\r\n`) and some apps supply lone CR
+  /// (`\r`). The paste encoder is xterm-accurate only for LF input:
+  /// unbracketed mode maps `\n` to `\r`, so CRLF becomes `\r\r` (a double
+  /// carriage return); bracketed mode passes `\r\n` through untouched, which
+  /// vim/nano interpret as two line breaks. Normalizing first makes multi-line
+  /// pastes behave identically across platforms.
+  static String _normalizePasteNewlines(String text) {
+    if (!text.contains('\r')) return text;
+    return text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
   }
 
   @override
