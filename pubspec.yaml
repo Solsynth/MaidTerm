@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.9
+  desktop_drop: ^0.8.0
   easy_localization: ^3.0.8
   file_picker: ^11.0.3
   maidpty:

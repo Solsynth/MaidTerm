@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
@@ -8,6 +9,7 @@ import '../settings/terminal_color_scheme.dart';
 import '../settings/terminal_fonts.dart';
 import '../settings/background_image.dart';
 import '../settings/terminal_settings.dart';
+import '../shell/drop_paths.dart';
 import 'terminal_workspace.dart';
 
 /// Renders one terminal with the settings-derived theme. The palette follows
@@ -24,6 +26,7 @@ class TerminalSurface extends ConsumerStatefulWidget {
 
 class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
   late final FocusNode _focusNode;
+  var _dragHovered = false;
 
   @override
   void initState() {
@@ -35,6 +38,24 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
 
   void _onFocusChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _setDragHovered(bool value) {
+    if (_dragHovered == value || !mounted) return;
+    setState(() => _dragHovered = value);
+  }
+
+  /// Inserts OS-dropped file paths into the terminal input line, each
+  /// shell-quoted so it reads as one argument. The terminal keeps focus so
+  /// the user can keep typing (or press Enter) right after the drop.
+  void _handleDrop(DropDoneDetails details) {
+    final paths = details.files
+        .map((file) => file.path)
+        .where((path) => path.isNotEmpty)
+        .toList();
+    if (paths.isEmpty) return;
+    widget.tab.session.controller.sendText(formatDroppedPaths(paths));
+    _focusNode.requestFocus();
   }
 
   void _requestFocusAfterBuild() {
@@ -159,15 +180,48 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
     final fullScreenMargin = settings?.fullScreenPaneMargin ?? EdgeInsets.zero;
     return ValueListenableBuilder<bool>(
       valueListenable: widget.tab.session.isFullScreen,
-      builder: (context, fullScreen, _) => maidterm.TerminalView(
-        controller: widget.tab.session.controller,
-        focusNode: _focusNode,
-        theme: buildTheme(fullScreen),
-        autofocus: true,
-        padding: fullScreen ? fullScreenMargin : normalMargin,
-        linkSettings: maidterm.LinkSettings(onActivate: _handleLinkActivate),
-        onVisualFullScreenChanged: widget.tab.session.setVisualFullScreen,
-      ),
+      builder: (context, fullScreen, _) {
+        final margin = fullScreen ? fullScreenMargin : normalMargin;
+        return DropTarget(
+          onDragEntered: (_) => _setDragHovered(true),
+          onDragExited: (_) => _setDragHovered(false),
+          onDragDone: _handleDrop,
+          child: Stack(
+            children: [
+              maidterm.TerminalView(
+                controller: widget.tab.session.controller,
+                focusNode: _focusNode,
+                theme: buildTheme(fullScreen),
+                autofocus: true,
+                padding: margin,
+                linkSettings: maidterm.LinkSettings(
+                  onActivate: _handleLinkActivate,
+                ),
+                onVisualFullScreenChanged: widget.tab.session
+                    .setVisualFullScreen,
+              ),
+              if (_dragHovered)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Container(
+                      key: const ValueKey('file-drop-highlight'),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: scheme.selection,
+                          width: 2,
+                        ),
+                        // Matches the pane radius in terminal_workspace_page
+                        // so the outline hugs the pane border, not the
+                        // terminal's padded grid area.
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
