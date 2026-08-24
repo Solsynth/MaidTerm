@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.9
-  file_picker: ^12.0.0
+  file_picker: ^11.0.3
   flutter_pty:
     path: packages/flutter_pty
   flutter_local_notifications: ^22.3.0
@@ -29,13 +29,20 @@ dependencies:
       url: https://github.com/boyan01/window_manager.git
       path: packages/window_manager
       ref: 6fae92d21b4c80ce1b8f71c1190d7970cf722bd4
+  solsynth_express:
+    git:
+      url: https://src.solsynth.dev/SoSYS/Solian.git
+      path: packages/solsynth_express
+      ref: a936275e6e0e43de3eddbc0ed812308742e2b017
   hooks_riverpod: ^3.4.2
   shared_preferences: ^2.5.5
   uuid: ^4.6.0
   collection: ^1.19.1
   material_symbols_icons: ^4.2960.0
+  package_info_plus: ^9.0.1
   path_provider: ^2.1.6
   system_fonts: ^1.0.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -67,6 +74,8 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icons/icon.png
   fonts:
     - family: IBM Plex Sans
       fonts:

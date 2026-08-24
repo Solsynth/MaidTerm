@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
 
 import 'terminal_color_scheme.dart';
+import 'about_page.dart';
 import 'terminal_fonts.dart';
 import 'background_image.dart';
 import 'terminal_settings.dart';
@@ -203,6 +204,23 @@ class SettingsPage extends ConsumerWidget {
                           .setShellPath(v.trim()),
                     ),
                   ),
+                  _SettingsSection(
+                    title: 'About',
+                    description:
+                        'Version, engine credits, and open-source licenses.',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Symbols.info),
+                      title: const Text('About MaidTerm'),
+                                            trailing: const Icon(Symbols.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          settings: const RouteSettings(name: '/about'),
+                          builder: (_) => const AboutPage(),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -362,7 +380,8 @@ class _BackgroundImageSettings extends ConsumerWidget {
       dialogTitle: 'Choose background image',
       type: FileType.image,
     );
-    final path = selection.isEmpty ? null : selection.first.path;
+    if (selection == null || selection.files.isEmpty) return;
+    final path = selection.files.first.path;
     if (path == null) return;
 
     try {

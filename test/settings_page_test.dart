@@ -6,7 +6,9 @@ import 'package:material_ui/material_ui.dart'
     as material_ui
     show GlobalMaterialLocalizations;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:maidterm_app/settings/about_page.dart';
 import 'package:maidterm_app/settings/settings_page.dart';
 import 'package:maidterm_app/settings/terminal_fonts.dart';
 import 'package:maidterm_app/settings/terminal_settings.dart';
@@ -144,5 +146,42 @@ void main() {
       prefs.getString('terminal.fullScreenPaneMargin'),
       contains('"top":3.5'),
     );
+  });
+  testWidgets('about entry opens the about page', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          packageInfoProvider.overrideWith(
+            (ref) async => PackageInfo(
+              appName: 'MaidTerm',
+              packageName: 'com.solsynth.maidterm',
+              version: '0.1.0',
+              buildNumber: '1',
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: [
+            ...material_ui.GlobalMaterialLocalizations.delegates,
+            GlobalMaterialLocalizations.delegate,
+          ],
+          home: const SettingsPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('About MaidTerm'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('About MaidTerm'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AboutPage), findsOneWidget);
   });
 }
