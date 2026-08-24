@@ -24,9 +24,7 @@ final DynamicLibrary _dylib = () {
 
 final _bindings = FlutterPtyBindings(_dylib);
 
-final _init = () {
-  return _bindings.Dart_InitializeApiDL(NativeApi.initializeApiDLData);
-}();
+final _init = _bindings.Dart_InitializeApiDL(NativeApi.initializeApiDLData);
 
 void _ensureInitialized() {
   if (_init != 0) {
@@ -36,18 +34,18 @@ void _ensureInitialized() {
 
 /// Pty represents a process running in a pseudo-terminal.
 ///
-/// To create a Pty, use [Pty.start].
+/// [Pty.start] creates a native session. [Pty.attach] subscribes another Dart
+/// frontend to that same session without spawning a second process.
 class Pty {
-  final String executable;
+  Pty._(this.executable, this.arguments) {
+    _ensureInitialized();
+    _exitPort.listen(_onExitCode);
+  }
 
-  final List<String> arguments;
-
-  /// Spawns a process in a pseudo-terminal. The arguments have the same meaning
-  /// as in [Process.start].
-  /// [ackRead] indicates if the pty should wait for a call to [Pty.ackRead] before sending the next data.
-  Pty.start(
-    this.executable, {
-    this.arguments = const [],
+  /// Spawns a process in a pseudo-terminal.
+  factory Pty.start(
+    String executable, {
+    List<String> arguments = const [],
     String? workingDirectory,
     Map<String, String>? environment,
     int rows = 25,
@@ -56,168 +54,235 @@ class Pty {
     int pixelHeight = 0,
     bool ackRead = false,
   }) {
-    _ensureInitialized();
+    final pty = Pty._(executable, List<String>.unmodifiable(arguments));
+    try {
+      pty._start(
+        workingDirectory: workingDirectory,
+        environment: environment,
+        rows: rows,
+        columns: columns,
+        pixelWidth: pixelWidth,
+        pixelHeight: pixelHeight,
+        ackRead: ackRead,
+      );
+      return pty;
+    } on Object {
+      pty._closePorts();
+      rethrow;
+    }
+  }
 
-    final effectiveEnv = <String, String>{};
+  /// Attaches a new Dart frontend to an existing native PTY session.
+  factory Pty.attach(int sessionId) {
+    final pty = Pty._('', const []);
+    try {
+      pty._attach(sessionId);
+      return pty;
+    } on Object {
+      pty._closePorts();
+      rethrow;
+    }
+  }
 
-    effectiveEnv['TERM'] = 'xterm-256color';
-    // Without this, tools like "vi" produce sequences that are not UTF-8 friendly
-    effectiveEnv['LANG'] = 'en_US.UTF-8';
+  final String executable;
+  final List<String> arguments;
+  final _stdoutPort = ReceivePort();
+  final _exitPort = ReceivePort();
+  final _exitCodeCompleter = Completer<int>();
 
+  late final int _sessionId;
+  bool _disposed = false;
+  bool _destroyed = false;
+  bool _exitReceived = false;
+  bool _portsClosed = false;
+
+  void _start({
+    required String? workingDirectory,
+    required Map<String, String>? environment,
+    required int rows,
+    required int columns,
+    required int pixelWidth,
+    required int pixelHeight,
+    required bool ackRead,
+  }) {
+    final effectiveEnv = <String, String>{
+      'TERM': 'xterm-256color',
+      'LANG': 'en_US.UTF-8',
+    };
     const envValuesToCopy = {
       'LOGNAME',
       'USER',
       'DISPLAY',
       'LC_TYPE',
       'HOME',
-      'PATH'
+      'PATH',
     };
-
-    for (var entry in Platform.environment.entries) {
-      if (envValuesToCopy.contains(entry.key)) {
+    for (final entry in Platform.environment.entries) {
+      if (envValuesToCopy.contains(entry.key))
         effectiveEnv[entry.key] = entry.value;
-      }
     }
+    if (environment != null) effectiveEnv.addAll(environment);
 
-    if (environment != null) {
-      for (var entry in environment.entries) {
-        effectiveEnv[entry.key] = entry.value;
-      }
-    }
-
-    // build argv
     final argv = calloc<Pointer<Utf8>>(arguments.length + 2);
-    argv.elementAt(0).value = executable.toNativeUtf8();
-    for (var i = 0; i < arguments.length; i++) {
-      argv.elementAt(i + 1).value = arguments[i].toNativeUtf8();
-    }
-    argv.elementAt(arguments.length + 1).value = nullptr;
-
-    //build env
     final envp = calloc<Pointer<Utf8>>(effectiveEnv.length + 1);
-    for (var i = 0; i < effectiveEnv.length; i++) {
-      final entry = effectiveEnv.entries.elementAt(i);
-      envp.elementAt(i).value = '${entry.key}=${entry.value}'.toNativeUtf8();
-    }
-    envp.elementAt(effectiveEnv.length).value = nullptr;
-
     final options = calloc<PtyOptions>();
-    options.ref.rows = rows;
-    options.ref.cols = columns;
-    options.ref.pixel_width = pixelWidth;
-    options.ref.pixel_height = pixelHeight;
-    options.ref.executable = executable.toNativeUtf8().cast();
-    options.ref.arguments = argv.cast();
-    options.ref.environment = envp.cast();
-    options.ref.stdout_port = _stdoutPort.sendPort.nativePort;
-    options.ref.exit_port = _exitPort.sendPort.nativePort;
-    options.ref.ackRead = ackRead;
+    final executablePointer = executable.toNativeUtf8();
+    final workingDirectoryPointer = workingDirectory?.toNativeUtf8();
+    final argumentPointers = <Pointer<Utf8>>[];
+    final environmentPointers = <Pointer<Utf8>>[];
+    try {
+      argv[0] = executablePointer;
+      for (var i = 0; i < arguments.length; i++) {
+        final pointer = arguments[i].toNativeUtf8();
+        argumentPointers.add(pointer);
+        argv[i + 1] = pointer;
+      }
+      argv[arguments.length + 1] = nullptr;
+      var i = 0;
+      for (final entry in effectiveEnv.entries) {
+        final pointer = '${entry.key}=${entry.value}'.toNativeUtf8();
+        environmentPointers.add(pointer);
+        envp[i++] = pointer;
+      }
+      envp[i] = nullptr;
 
-    if (workingDirectory != null) {
-      options.ref.working_directory = workingDirectory.toNativeUtf8().cast();
-    } else {
-      options.ref.working_directory = nullptr;
+      options.ref
+        ..rows = rows
+        ..cols = columns
+        ..pixel_width = pixelWidth
+        ..pixel_height = pixelHeight
+        ..executable = executablePointer.cast()
+        ..arguments = argv.cast()
+        ..environment = envp.cast()
+        ..stdout_port = _stdoutPort.sendPort.nativePort
+        ..exit_port = _exitPort.sendPort.nativePort
+        ..ackRead = ackRead
+        ..working_directory = workingDirectoryPointer?.cast() ?? nullptr;
+
+      final sessionId = _bindings.pty_session_create(options);
+      if (sessionId == 0) {
+        throw StateError('Failed to create PTY: ${_getPtyError()}');
+      }
+      try {
+        _attach(sessionId);
+      } on Object {
+        _bindings.pty_session_destroy(sessionId);
+        rethrow;
+      }
+    } finally {
+      calloc.free(options);
+      calloc.free(argv);
+      calloc.free(envp);
+      malloc.free(executablePointer);
+      if (workingDirectoryPointer != null) malloc.free(workingDirectoryPointer);
+      for (final pointer in argumentPointers) malloc.free(pointer);
+      for (final pointer in environmentPointers) malloc.free(pointer);
     }
-
-    _handle = _bindings.pty_create(options);
-
-    calloc.free(options);
-
-    if (_handle == nullptr) {
-      throw StateError('Failed to create PTY: ${_getPtyError()}');
-    }
-
-    _exitPort.first.then(_onExitCode);
   }
 
-  final _stdoutPort = ReceivePort();
+  void _attach(int sessionId) {
+    if (sessionId == 0 ||
+        _bindings.pty_session_attach(
+              sessionId,
+              _stdoutPort.sendPort.nativePort,
+              _exitPort.sendPort.nativePort,
+            ) !=
+            0) {
+      throw StateError('Failed to attach to PTY session $sessionId');
+    }
+    _sessionId = sessionId;
+  }
 
-  final _exitPort = ReceivePort();
+  /// Stable process-wide native session ID.
+  int get sessionId => _sessionId;
 
-  final _exitCodeCompleter = Completer<int>();
-
-  late final Pointer<PtyHandle> _handle;
-
-  /// The output stream from the pseudo-terminal. Note that pseudo-terminals
-  /// do not distinguish between stdout and stderr.
+  /// The output stream from the pseudo-terminal.
   Stream<Uint8List> get output => _stdoutPort.cast();
 
-  /// A `Future` which completes with the exit code of the process
-  /// when the process completes.
-  ///
-  /// The handling of exit codes is platform specific.
-  ///
-  /// On Linux and OS X a normal exit code will be a positive value in
-  /// the range `[0..255]`. If the process was terminated due to a signal
-  /// the exit code will be a negative value in the range `[-255..-1]`,
-  /// where the absolute value of the exit code is the signal
-  /// number. For example, if a process crashes due to a segmentation
-  /// violation the exit code will be -11, as the signal SIGSEGV has the
-  /// number 11.
-  ///
-  /// On Windows a process can report any 32-bit value as an exit
-  /// code. When returning the exit code this exit code is turned into
-  /// a signed value. Some special values are used to report
-  /// termination due to some system event. E.g. if a process crashes
-  /// due to an access violation the 32-bit exit code is `0xc0000005`,
-  /// which will be returned as the negative number `-1073741819`. To
-  /// get the original 32-bit value use `(0x100000000 + exitCode) &
-  /// 0xffffffff`.
-  ///
-  /// There is no guarantee that [output] have finished reporting the buffered
-  /// output of the process when the returned future completes.
-  /// To be sure that all output is captured, wait for the done event on the
-  /// streams.
+  /// Completes with the process exit code.
   Future<int> get exitCode => _exitCodeCompleter.future;
 
-  /// The process id of the process running in the pseudo-terminal.
-  int get pid => _bindings.pty_getpid(_handle);
+  /// Process ID of the native session.
+  int get pid => _bindings.pty_session_getpid(_sessionId);
 
-  /// Write data to the pseudo-terminal.
+  /// Writes data to the existing pseudo-terminal.
   void write(Uint8List data) {
-    final buf = malloc<Int8>(data.length);
-    buf.asTypedList(data.length).setAll(0, data);
-    _bindings.pty_write(_handle, buf.cast(), data.length);
-    malloc.free(buf);
+    if (_disposed || _destroyed) return;
+    final buffer = malloc<Uint8>(data.length);
+    try {
+      buffer.asTypedList(data.length).setAll(0, data);
+      _bindings.pty_session_write(_sessionId, buffer, data.length);
+    } finally {
+      malloc.free(buffer);
+    }
   }
 
-  /// Resize the pseudo-terminal.
-  ///
-  /// [pixelWidth]/[pixelHeight] populate `TIOCGWINSZ`'s `ws_xpixel`/
-  /// `ws_ypixel` so graphics-protocol clients can size images in pixels.
+  /// Resizes the existing pseudo-terminal.
   void resize(int rows, int cols, {int pixelWidth = 0, int pixelHeight = 0}) {
-    _bindings.pty_resize(_handle, rows, cols, pixelWidth, pixelHeight);
+    if (_disposed || _destroyed) return;
+    _bindings.pty_session_resize(
+      _sessionId,
+      rows,
+      cols,
+      pixelWidth,
+      pixelHeight,
+    );
   }
 
-  /// Kill the process running in the pseudo-terminal.
-  ///
-  /// When possible, [signal] will be sent to the process. This includes
-  /// Linux and OS X. The default signal is [ProcessSignal.sigterm]
-  /// which will normally terminate the process.
+  /// Detaches only this Dart frontend.
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    _bindings.pty_session_detach(_sessionId, _stdoutPort.sendPort.nativePort);
+    _closePorts();
+  }
+
+  /// Explicitly destroys the native session and its child process.
+  Future<void> destroy() async {
+    if (_destroyed) return;
+    _destroyed = true;
+    _bindings.pty_session_destroy(_sessionId);
+    _disposed = true;
+    _closePorts();
+  }
+
+  /// Sends [signal] to the process without detaching this frontend.
   bool kill([ProcessSignal signal = ProcessSignal.sigterm]) {
-    return Process.killPid(pid, signal);
+    final processId = pid;
+    if (processId <= 0) return false;
+    return Process.killPid(processId, signal);
   }
 
-  /// indicates that a data chunk has been processed.
-  /// This is needed when ackRead is set to true as the pty will wait for this signal to happen
-  /// before any additional data is sent.
+  /// Acknowledges a data chunk when the legacy ack mode is enabled.
   void ackRead() {
-    _bindings.pty_ack_read(_handle);
+    if (!_disposed && !_destroyed) {
+      _bindings.pty_session_ack_read(
+          _sessionId, _stdoutPort.sendPort.nativePort);
+    }
   }
 
-  void _onExitCode(dynamic exitCode) {
+  void _onExitCode(dynamic value) {
+    if (_exitReceived) return;
+    _exitReceived = true;
+    final code = value is int ? value : int.parse('$value');
+    if (!_exitCodeCompleter.isCompleted) _exitCodeCompleter.complete(code);
+    if (!_disposed && !_destroyed) {
+      _disposed = true;
+      _bindings.pty_session_detach(_sessionId, _stdoutPort.sendPort.nativePort);
+    }
+    _closePorts();
+  }
+
+  void _closePorts() {
+    if (_portsClosed) return;
+    _portsClosed = true;
     _stdoutPort.close();
     _exitPort.close();
-    _exitCodeCompleter.complete(exitCode);
   }
 }
 
 String? _getPtyError() {
   final error = _bindings.pty_error();
-
-  if (error == nullptr) {
-    return null;
-  }
-
+  if (error == nullptr) return null;
   return error.cast<Utf8>().toDartString();
 }

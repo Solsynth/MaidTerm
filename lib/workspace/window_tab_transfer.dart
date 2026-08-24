@@ -2,8 +2,8 @@ import 'terminal_workspace.dart';
 import 'session_layout.dart';
 
 /// A serializable description of a workspace tab while it moves between
-/// Flutter engines. PTYs cannot cross engine boundaries, so the destination
-/// recreates each shell in the same working directory.
+/// Flutter engines. Each pane carries the stable native PTY session ID so the
+/// destination attaches to the running process instead of recreating a shell.
 class WorkspaceTabTransfer {
   const WorkspaceTabTransfer({
     required this.id,
@@ -21,6 +21,7 @@ class WorkspaceTabTransfer {
           WorkspacePaneTransfer(
             id: pane.id,
             tabId: pane.tab.id,
+            sessionId: pane.tab.sessionId,
             workingDirectory: pane.tab.session.workingDirectory,
           ),
       ],
@@ -92,6 +93,7 @@ class WorkspacePaneTransfer {
   const WorkspacePaneTransfer({
     required this.id,
     required this.tabId,
+    required this.sessionId,
     required this.workingDirectory,
   });
 
@@ -99,17 +101,20 @@ class WorkspacePaneTransfer {
     return WorkspacePaneTransfer(
       id: json['id'] as String,
       tabId: json['tabId'] as String,
-      workingDirectory: json['workingDirectory'] as String,
+      sessionId: (json['sessionId'] as num?)?.toInt(),
+      workingDirectory: json['workingDirectory'] as String? ?? '',
     );
   }
 
   final String id;
   final String tabId;
+  final int? sessionId;
   final String workingDirectory;
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'tabId': tabId,
+    'sessionId': sessionId,
     'workingDirectory': workingDirectory,
   };
 }

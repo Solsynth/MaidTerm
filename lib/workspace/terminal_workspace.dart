@@ -53,6 +53,7 @@ class TerminalTab {
 
   String get title => session.title.value;
   maidterm.TerminalController get controller => session.controller;
+  int? get sessionId => session.sessionId;
 
   ValueListenable<maidterm.TerminalProgress?> get progress => session.progress;
 
@@ -183,31 +184,59 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     WorkspaceTabTransfer transfer,
   ) {
     final panes = <String, TerminalPane>{};
-    for (final paneTransfer in transfer.panes) {
-      final tab = _spawnTerminalTab(
-        workingDirectory: paneTransfer.workingDirectory,
+    final attached = <TerminalTab>[];
+    try {
+      for (final paneTransfer in transfer.panes) {
+        final sessionId = paneTransfer.sessionId;
+        if (sessionId == null || sessionId == 0) {
+          throw StateError(
+            'Transfer pane ${paneTransfer.id} has no PTY session',
+          );
+        }
+        final tab = _spawnTerminalTab(
+          workingDirectory: paneTransfer.workingDirectory,
+          sessionId: sessionId,
+          tabId: paneTransfer.tabId,
+        );
+        attached.add(tab);
+        panes[paneTransfer.id] = TerminalPane(id: paneTransfer.id, tab: tab);
+      }
+      if (panes.isEmpty || !panes.containsKey(transfer.focusedPaneId)) {
+        throw StateError('Transfer ${transfer.id} has an invalid pane layout');
+      }
+      final layout = WorkspaceTabTransfer.layoutFromJson(transfer.layout);
+      final group = TerminalWorkspaceTab(
+        id: transfer.id,
+        panes: panes,
+        layout: layout,
+        focusedPaneId: transfer.focusedPaneId,
       );
-      panes[paneTransfer.id] = TerminalPane(id: paneTransfer.id, tab: tab);
+      for (final pane in panes.values) {
+        _bindSessionExit(group, pane.id, pane.tab);
+      }
+      return group;
+    } on Object {
+      for (final tab in attached) {
+        unawaited(tab.session.dispose());
+      }
+      rethrow;
     }
-    final group = TerminalWorkspaceTab(
-      id: transfer.id,
-      panes: panes,
-      layout: WorkspaceTabTransfer.layoutFromJson(transfer.layout),
-      focusedPaneId: panes.containsKey(transfer.focusedPaneId)
-          ? transfer.focusedPaneId
-          : panes.keys.first,
-    );
-    for (final pane in panes.values) {
-      _bindSessionExit(group, pane.id, pane.tab);
-    }
-    return group;
   }
 
-  TerminalTab _spawnTerminalTab({String? workingDirectory}) {
-    final session = ref.read(localShellSessionFactoryProvider)(
-      workingDirectory: workingDirectory,
-    );
-    final tab = TerminalTab(id: _uuid.v4(), session: session);
+  TerminalTab _spawnTerminalTab({
+    String? workingDirectory,
+    int? sessionId,
+    String? tabId,
+  }) {
+    final session = sessionId == null
+        ? ref.read(localShellSessionFactoryProvider)(
+            workingDirectory: workingDirectory,
+          )
+        : LocalShellSession(
+            workingDirectory: workingDirectory,
+            sessionId: sessionId,
+          );
+    final tab = TerminalTab(id: tabId ?? _uuid.v4(), session: session);
     session.title.addListener(_onSessionTitleChanged);
     return tab;
   }
@@ -309,15 +338,14 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
   }
 
   /// Removes a tab without confirmation so another window can own it.
-  ///
-  /// The sessions are disposed after the destination has recreated them.
+  /// Moving detaches this frontend but leaves native sessions attached.
   void detachTab(String tabId, {bool disposeSessions = true}) {
     final index = state.tabs.indexWhere((tab) => tab.id == tabId);
     if (index < 0) return;
     final group = state.tabs[index];
     if (disposeSessions) {
       for (final pane in group.panes.values) {
-        unawaited(pane.tab.session.dispose());
+        unawaited(pane.tab.session.terminate());
       }
     }
     final nextTabs = [...state.tabs]..removeAt(index);
@@ -329,17 +357,18 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     state = TerminalWorkspaceState(tabs: nextTabs, selectedTabId: nextSelected);
   }
 
-  /// Recreates a tab received from another Flutter engine.
-  void importTab(WorkspaceTabTransfer transfer) {
+  /// Attaches every pane in a received tab before publishing the import.
+  bool importTab(WorkspaceTabTransfer transfer) {
     if (state.tabs.any((tab) => tab.id == transfer.id)) {
       selectTab(transfer.id);
-      return;
+      return true;
     }
     final group = _createWorkspaceTabFromTransfer(transfer);
     state = TerminalWorkspaceState(
       tabs: [...state.tabs, group],
       selectedTabId: group.id,
     );
+    return true;
   }
 
   /// Closes a top-level tab and all panes it owns. When any pane still runs
@@ -356,7 +385,7 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
       return;
     }
     for (final pane in group.panes.values) {
-      unawaited(pane.tab.session.dispose());
+      await pane.tab.session.terminate();
     }
 
     final nextTabs = [...state.tabs]..removeAt(index);
@@ -397,7 +426,7 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
       await closeTab(current.id);
       return;
     }
-    unawaited(current.panes[paneId]!.tab.session.dispose());
+    await current.panes[paneId]!.tab.session.terminate();
     state = _replaceGroup(_withoutPane(current, paneId));
   }
 
@@ -412,9 +441,10 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
   Future<void> closeAll() async {
     for (final group in state.tabs) {
       for (final pane in group.panes.values) {
-        await pane.tab.session.dispose();
+        await pane.tab.session.terminate();
       }
     }
+    state = const TerminalWorkspaceState();
   }
 
   TerminalWorkspaceTab _withoutPane(TerminalWorkspaceTab group, String paneId) {

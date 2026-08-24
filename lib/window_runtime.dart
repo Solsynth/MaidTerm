@@ -11,13 +11,26 @@ final windowLaunchDataProvider = Provider<WindowLaunchData>(
 
 const maidTermMainWindow = 'main';
 const maidTermWorkspaceWindow = 'workspace';
+const windowProtocolVersion = 1;
 
 class WindowLaunchData {
-  const WindowLaunchData({required this.type, required this.window, this.tab});
+  const WindowLaunchData({
+    required this.type,
+    required this.window,
+    this.tab,
+    this.protocol = windowProtocolVersion,
+    this.requestId,
+    this.sourceWindowId,
+    this.hiddenAtLaunch = false,
+  });
 
   const WindowLaunchData.main({this.window})
     : type = maidTermMainWindow,
-      tab = null;
+      tab = null,
+      protocol = windowProtocolVersion,
+      requestId = null,
+      sourceWindowId = null,
+      hiddenAtLaunch = false;
 
   factory WindowLaunchData.fromWindow(WindowController controller) {
     return _fromSerialized(controller.arguments, controller);
@@ -37,28 +50,43 @@ class WindowLaunchData {
     String raw,
     WindowController controller,
   ) {
-    if (raw.trim().isEmpty) {
-      return WindowLaunchData.main(window: controller);
+    if (raw.trim().isEmpty) return WindowLaunchData.main(window: controller);
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) {
+      throw const FormatException('Window payload is not an object');
     }
-    try {
-      final json = jsonDecode(raw);
-      if (json is! Map) return WindowLaunchData.main(window: controller);
-      final tabJson = json['tab'];
-      return WindowLaunchData(
-        type: json['type'] as String? ?? maidTermMainWindow,
-        window: controller,
-        tab: tabJson is Map
-            ? WorkspaceTabTransfer.fromJson(Map<dynamic, dynamic>.from(tabJson))
-            : null,
-      );
-    } on Object {
-      return WindowLaunchData.main(window: controller);
+    final json = Map<dynamic, dynamic>.from(decoded);
+    final protocolValue = (json['protocol'] as num?)?.toInt();
+    if (protocolValue != windowProtocolVersion) {
+      throw FormatException('Unsupported window protocol: ${json['protocol']}');
     }
+    final protocol = protocolValue!;
+    final type = json['type'];
+    if (type is! String ||
+        (type != maidTermMainWindow && type != maidTermWorkspaceWindow)) {
+      throw FormatException('Unsupported window role: $type');
+    }
+    final tabJson = json['tab'];
+    return WindowLaunchData(
+      type: type,
+      window: controller,
+      protocol: protocol,
+      requestId: json['requestId'] as String?,
+      sourceWindowId: json['sourceWindowId'] as String?,
+      hiddenAtLaunch: json['hiddenAtLaunch'] as bool? ?? false,
+      tab: tabJson is Map
+          ? WorkspaceTabTransfer.fromJson(Map<dynamic, dynamic>.from(tabJson))
+          : null,
+    );
   }
 
   final String type;
   final WindowController? window;
   final WorkspaceTabTransfer? tab;
+  final int protocol;
+  final String? requestId;
+  final String? sourceWindowId;
+  final bool hiddenAtLaunch;
 
   bool get isWorkspaceWindow => type == maidTermWorkspaceWindow;
 }

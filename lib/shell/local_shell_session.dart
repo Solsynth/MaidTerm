@@ -30,6 +30,7 @@ class LocalShellSession {
   LocalShellSession({
     String? shell,
     String? workingDirectory,
+    int? sessionId,
     bool autoStart = true,
     bool cursorBlink = true,
     maidterm.CursorShape cursorStyle = maidterm.CursorShape.block,
@@ -59,19 +60,21 @@ class LocalShellSession {
     _controller.onTitleChanged = _onTitleChanged;
     _controller.onPwdChanged = _onPwdChanged;
     if (!autoStart) return;
-    final pty = _pty = Pty.start(
-      shell ?? _defaultShell(),
-      rows: 24,
-      columns: 80,
-      workingDirectory: _spawnCwd,
-      // flutter_pty only forwards a fixed env set; COLORTERM must be opt-in
-      // or truecolor clients (fastfetch, vim, bat) silently downgrade.
-      environment: const {
-        'TERM': 'xterm-256color',
-        'COLORTERM': 'truecolor',
-        'TERM_PROGRAM': 'MaidTerm',
-      },
-    );
+    final pty = _pty = sessionId == null
+        ? Pty.start(
+            shell ?? _defaultShell(),
+            rows: 24,
+            columns: 80,
+            workingDirectory: _spawnCwd,
+            // flutter_pty only forwards a fixed env set; COLORTERM must be opt-in
+            // or truecolor clients (fastfetch, vim, bat) silently downgrade.
+            environment: const {
+              'TERM': 'xterm-256color',
+              'COLORTERM': 'truecolor',
+              'TERM_PROGRAM': 'MaidTerm',
+            },
+          )
+        : Pty.attach(sessionId);
     _ptyPid = pty.pid;
     _subscriptions.add(pty.output.listen(_controller.write));
     unawaited(pty.exitCode.then((_) => _handlePtyExit()));
@@ -87,6 +90,8 @@ class LocalShellSession {
   /// Called when the shell process exits on its own.
   VoidCallback? onExit;
 
+  /// Stable native session ID used for cross-window attachment.
+  int? get sessionId => _pty?.sessionId;
   bool _disposed = false;
   bool _exitHandled = false;
   int? _ptyPid;
@@ -100,6 +105,7 @@ class LocalShellSession {
 
   /// OSC 0/2 title set by the running program; empty until one is set.
   String _oscTitle = '';
+
   /// Foreground program that set [_oscTitle], so the title reverts when that
   /// program exits and the shell takes the foreground. Null while the owner
   /// is unknown or the title came from the shell.
@@ -284,6 +290,7 @@ class LocalShellSession {
     onExit?.call();
   }
 
+  /// Detaches this frontend without terminating the shared native session.
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
@@ -298,17 +305,18 @@ class LocalShellSession {
     _controller.onProgress = null;
     final pid = _ptyPid;
     if (pid != null) _monitor?.untrack(pid);
-    final pty = _pty;
-    if (pty != null) {
-      if (Platform.isWindows) {
-        pty.kill();
-      }
-      await pty.exitCode;
-    }
+    await _pty?.dispose();
     _displayTitle.dispose();
     _progress.dispose();
     _fullScreen.dispose();
     _controller.dispose();
+  }
+
+  /// Explicitly terminates the native session before detaching this frontend.
+  Future<void> terminate() async {
+    if (_disposed) return;
+    await _pty?.destroy();
+    await dispose();
   }
 
   static String _defaultShell() {

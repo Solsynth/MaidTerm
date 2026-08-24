@@ -372,6 +372,141 @@ class FlutterPtyBindings {
   set Dart_ExitScope_DL(Dart_ExitScope_Type value) =>
       _Dart_ExitScope_DL.value = value;
 
+  int pty_session_create(
+    ffi.Pointer<PtyOptions> options,
+  ) {
+    return _pty_session_create(
+      options,
+    );
+  }
+
+  late final _pty_session_createPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint64 Function(ffi.Pointer<PtyOptions>)>>(
+          'pty_session_create');
+  late final _pty_session_create = _pty_session_createPtr
+      .asFunction<int Function(ffi.Pointer<PtyOptions>)>();
+
+  int pty_session_attach(
+    int session_id,
+    int stdout_port,
+    int exit_port,
+  ) {
+    return _pty_session_attach(
+      session_id,
+      stdout_port,
+      exit_port,
+    );
+  }
+
+  late final _pty_session_attachPtr = _lookup<
+          ffi
+          .NativeFunction<ffi.Int Function(ffi.Uint64, Dart_Port, Dart_Port)>>(
+      'pty_session_attach');
+  late final _pty_session_attach =
+      _pty_session_attachPtr.asFunction<int Function(int, int, int)>();
+
+  int pty_session_detach(
+    int session_id,
+    int stdout_port,
+  ) {
+    return _pty_session_detach(
+      session_id,
+      stdout_port,
+    );
+  }
+
+  late final _pty_session_detachPtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Uint64, Dart_Port)>>(
+          'pty_session_detach');
+  late final _pty_session_detach =
+      _pty_session_detachPtr.asFunction<int Function(int, int)>();
+
+  int pty_session_write(
+    int session_id,
+    ffi.Pointer<ffi.Uint8> buffer,
+    int length,
+  ) {
+    return _pty_session_write(
+      session_id,
+      buffer,
+      length,
+    );
+  }
+
+  late final _pty_session_writePtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Int Function(ffi.Uint64, ffi.Pointer<ffi.Uint8>,
+              ffi.Int)>>('pty_session_write');
+  late final _pty_session_write = _pty_session_writePtr
+      .asFunction<int Function(int, ffi.Pointer<ffi.Uint8>, int)>();
+
+  int pty_session_ack_read(
+    int session_id,
+    int stdout_port,
+  ) {
+    return _pty_session_ack_read(
+      session_id,
+      stdout_port,
+    );
+  }
+
+  late final _pty_session_ack_readPtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Uint64, Dart_Port)>>(
+          'pty_session_ack_read');
+  late final _pty_session_ack_read =
+      _pty_session_ack_readPtr.asFunction<int Function(int, int)>();
+
+  int pty_session_resize(
+    int session_id,
+    int rows,
+    int cols,
+    int pixel_width,
+    int pixel_height,
+  ) {
+    return _pty_session_resize(
+      session_id,
+      rows,
+      cols,
+      pixel_width,
+      pixel_height,
+    );
+  }
+
+  late final _pty_session_resizePtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Int Function(ffi.Uint64, ffi.Int, ffi.Int, ffi.Int,
+              ffi.Int)>>('pty_session_resize');
+  late final _pty_session_resize = _pty_session_resizePtr
+      .asFunction<int Function(int, int, int, int, int)>();
+
+  int pty_session_getpid(
+    int session_id,
+  ) {
+    return _pty_session_getpid(
+      session_id,
+    );
+  }
+
+  late final _pty_session_getpidPtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Uint64)>>(
+          'pty_session_getpid');
+  late final _pty_session_getpid =
+      _pty_session_getpidPtr.asFunction<int Function(int)>();
+
+  int pty_session_destroy(
+    int session_id,
+  ) {
+    return _pty_session_destroy(
+      session_id,
+    );
+  }
+
+  late final _pty_session_destroyPtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Uint64)>>(
+          'pty_session_destroy');
+  late final _pty_session_destroy =
+      _pty_session_destroyPtr.asFunction<int Function(int)>();
+
   ffi.Pointer<PtyHandle> pty_create(
     ffi.Pointer<PtyOptions> options,
   ) {
