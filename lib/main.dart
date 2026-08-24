@@ -17,9 +17,8 @@ Future<void> main(List<String> args) async {
 
   var launch = const WindowLaunchData.main();
   if (DesktopWindowFrame.isPlatformDesktop) {
-    launch = WindowLaunchData.fromWindow(
-      await WindowController.fromCurrentEngine(),
-    );
+    final currentWindow = await WindowController.fromCurrentEngine();
+    launch = WindowLaunchData.fromEntrypointArgs(currentWindow, args);
   }
 
   if (DesktopWindowFrame.isPlatformDesktop) {

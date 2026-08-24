@@ -655,9 +655,9 @@ class _WorkspaceTabBar extends ConsumerWidget {
                   onDragStarted: () => coordinator.dragStarted(
                     WorkspaceTabTransfer.fromTab(tab),
                   ),
-                  onDragEnd: (accepted) => coordinator.dragEnded(
+                  onDragEnd: (details) => coordinator.dragEnded(
                     WorkspaceTabTransfer.fromTab(tab),
-                    wasAccepted: accepted,
+                    details: details,
                   ),
                 );
               },
@@ -825,7 +825,7 @@ class _DraggableWorkspaceTab extends StatelessWidget {
   final Widget child;
   final void Function(_TabDragData data, int insertIndex) onAccept;
   final VoidCallback onDragStarted;
-  final ValueChanged<bool> onDragEnd;
+  final ValueChanged<DraggableDetails> onDragEnd;
 
   bool get _vertical =>
       position == TabBarPosition.left || position == TabBarPosition.right;
@@ -858,7 +858,7 @@ class _DraggableWorkspaceTab extends StatelessWidget {
         ? LongPressDraggable<_TabDragData>(
             data: dragData,
             onDragStarted: onDragStarted,
-            onDragEnd: (details) => onDragEnd(details.wasAccepted),
+            onDragEnd: onDragEnd,
             dragAnchorStrategy: pointerDragAnchorStrategy,
             feedback: feedback,
             childWhenDragging: Opacity(opacity: 0.35, child: child),
@@ -869,7 +869,7 @@ class _DraggableWorkspaceTab extends StatelessWidget {
             dragAnchorStrategy: pointerDragAnchorStrategy,
             feedback: feedback,
             onDragStarted: onDragStarted,
-            onDragEnd: (details) => onDragEnd(details.wasAccepted),
+            onDragEnd: onDragEnd,
             childWhenDragging: Opacity(opacity: 0.35, child: child),
             child: child,
           );

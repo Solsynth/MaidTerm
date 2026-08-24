@@ -20,8 +20,24 @@ class WindowLaunchData {
       tab = null;
 
   factory WindowLaunchData.fromWindow(WindowController controller) {
-    final raw = controller.arguments.trim();
-    if (raw.isEmpty) {
+    return _fromSerialized(controller.arguments, controller);
+  }
+
+  factory WindowLaunchData.fromEntrypointArgs(
+    WindowController controller,
+    List<String> args,
+  ) {
+    if (args.length >= 3 && args[0] == 'multi_window') {
+      return _fromSerialized(args[2], controller);
+    }
+    return WindowLaunchData.fromWindow(controller);
+  }
+
+  static WindowLaunchData _fromSerialized(
+    String raw,
+    WindowController controller,
+  ) {
+    if (raw.trim().isEmpty) {
       return WindowLaunchData.main(window: controller);
     }
     try {

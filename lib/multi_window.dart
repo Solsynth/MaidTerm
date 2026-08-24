@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -82,6 +82,16 @@ class MultiWindowCoordinator {
         ? Map<dynamic, dynamic>.from(call.arguments as Map)
         : <dynamic, dynamic>{};
     switch (call.method) {
+      case 'window_get_bounds':
+        final bounds = await windowManager.getBounds();
+        return {
+          'left': bounds.left,
+          'top': bounds.top,
+          'right': bounds.right,
+          'bottom': bounds.bottom,
+        };
+      case 'window_has_active_drag':
+        return externalDrag.value != null;
       case 'window_prepare_drag':
         final sourceWindowId = args['sourceWindowId'] as String?;
         final tabJson = args['tab'];
@@ -122,26 +132,82 @@ class MultiWindowCoordinator {
     }
   }
 
-  void dragEnded(WorkspaceTabTransfer tab, {required bool wasAccepted}) {
-    unawaited(_finishDrag(tab, wasAccepted: wasAccepted));
+  void dragEnded(
+    WorkspaceTabTransfer tab, {
+    required DraggableDetails details,
+  }) {
+    unawaited(_finishDrag(tab, details: details));
   }
 
   Future<void> _finishDrag(
     WorkspaceTabTransfer tab, {
-    required bool wasAccepted,
+    required DraggableDetails details,
   }) async {
     // A drop in another Flutter engine reaches that engine first, then calls
     // back into this engine. Leave a small ordering window before tearing out.
-    await Future<void>.delayed(const Duration(milliseconds: 180));
-    if (wasAccepted) {
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (details.wasAccepted) return;
+      if (_externallyAccepted.remove(tab.id)) return;
+      if (await _mergeAtGlobalOffset(tab, details.offset)) return;
+      await tearOut(tab);
+    } finally {
       await _cancelDragOnOtherWindows();
-      return;
     }
-    if (_externallyAccepted.remove(tab.id)) {
-      await _cancelDragOnOtherWindows();
-      return;
+  }
+
+  Future<bool> _mergeAtGlobalOffset(
+    WorkspaceTabTransfer tab,
+    Offset offset,
+  ) async {
+    final current = _currentWindow;
+    if (current == null) return false;
+    final windows = await WindowController.getAll();
+    final candidates = <WindowController>[];
+    for (final window in windows) {
+      if (window.windowId == current.windowId) continue;
+      var isTarget = false;
+      try {
+        final bounds = await window.invokeMethod<Map<dynamic, dynamic>>(
+          'window_get_bounds',
+        );
+        if (bounds != null) {
+          final rect = Rect.fromLTRB(
+            (bounds['left'] as num).toDouble(),
+            (bounds['top'] as num).toDouble(),
+            (bounds['right'] as num).toDouble(),
+            (bounds['bottom'] as num).toDouble(),
+          );
+          isTarget = rect.contains(offset);
+        }
+      } on Object {
+        // The target may still be registering its window channels.
+      }
+      if (!isTarget) {
+        try {
+          isTarget =
+              await window.invokeMethod<bool>('window_has_active_drag') == true;
+        } on Object {
+          continue;
+        }
+      }
+      if (isTarget) candidates.add(window);
     }
-    await tearOut(tab);
+
+    for (final window in candidates) {
+      try {
+        final accepted = await window.invokeMethod<bool>('window_receive_tab', {
+          'tab': tab.toJson(),
+        });
+        if (accepted == true) {
+          _detachTransferredTab(tab.id);
+          return true;
+        }
+      } on Object {
+        // Try the next candidate, then fall back to creating a new window.
+      }
+    }
+    return false;
   }
 
   Future<void> acceptExternalDrag() async {
@@ -171,7 +237,6 @@ class MultiWindowCoordinator {
       'tab': transfer.toJson(),
     });
     if (accepted != true) return false;
-    _externallyAccepted.add(transfer.id);
     _detachTransferredTab(transfer.id);
     return true;
   }
@@ -187,7 +252,6 @@ class MultiWindowCoordinator {
     final window = await _createWindow(tab: tab);
     await window.show();
     _detachTransferredTab(tab.id);
-    await _cancelDragOnOtherWindows();
   }
 
   void _detachTransferredTab(String tabId) {
@@ -217,7 +281,11 @@ class MultiWindowCoordinator {
     final windows = await WindowController.getAll();
     for (final window in windows) {
       if (window.windowId == current.windowId) continue;
-      await window.invokeMethod<bool>('window_drag_cancelled');
+      try {
+        await window.invokeMethod<bool>('window_drag_cancelled');
+      } on Object {
+        // A window can disappear while the drag is finishing.
+      }
     }
   }
 
