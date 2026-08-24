@@ -6,6 +6,46 @@ import 'package:maidterm_app/shell/local_shell_session.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
 
 void main() {
+  test('packaged macOS shells receive standard user tool paths', () {
+    final path = effectiveShellPath(
+      environment: const {
+        'HOME': '/Users/example',
+        'PATH': '/usr/bin:/bin:/usr/bin',
+      },
+      isMacOS: true,
+    );
+
+    expect(
+      path.split(':'),
+      equals([
+        '/usr/bin',
+        '/bin',
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/local/bin',
+        '/usr/local/sbin',
+        '/Users/example/.local/bin',
+        '/Users/example/.cargo/bin',
+      ]),
+    );
+  });
+
+  test('existing development PATH order is preserved', () {
+    final path = effectiveShellPath(
+      environment: const {
+        'HOME': '/Users/example',
+        'PATH': '/custom/bin:/opt/homebrew/bin',
+      },
+      isMacOS: true,
+    );
+
+    expect(path.split(':').first, '/custom/bin');
+    expect(
+      path.split(':').where((entry) => entry == '/opt/homebrew/bin'),
+      hasLength(1),
+    );
+  });
+
   /// Feeds bytes into the engine exactly as pty output would arrive, then
   /// asserts the session's live display title.
   LocalShellSession session() => LocalShellSession(autoStart: false);
@@ -42,23 +82,25 @@ void main() {
     expect(s.title.value, '/tmp/x');
     s.dispose();
   });
-  test('title reverts to the working directory when its owner program exits',
-      () {
-    var foreground = 'vim';
-    final s = LocalShellSession(
-      autoStart: false,
-      foregroundProgramName: () => foreground,
-    );
-    // A running program owns the title while it is the foreground.
-    s.controller.write(utf8.encode('\x1b]2;vim notes\x07'));
-    expect(s.title.value, 'vim notes');
-    // The program exits and the shell takes the foreground; the next refresh
-    // drops the stale title and falls back to the shell's working directory.
-    foreground = 'zsh';
-    s.controller.write(utf8.encode('\x1b]7;file:///tmp/repo\x07'));
-    expect(s.title.value, '/tmp/repo');
-    s.dispose();
-  });
+  test(
+    'title reverts to the working directory when its owner program exits',
+    () {
+      var foreground = 'vim';
+      final s = LocalShellSession(
+        autoStart: false,
+        foregroundProgramName: () => foreground,
+      );
+      // A running program owns the title while it is the foreground.
+      s.controller.write(utf8.encode('\x1b]2;vim notes\x07'));
+      expect(s.title.value, 'vim notes');
+      // The program exits and the shell takes the foreground; the next refresh
+      // drops the stale title and falls back to the shell's working directory.
+      foreground = 'zsh';
+      s.controller.write(utf8.encode('\x1b]7;file:///tmp/repo\x07'));
+      expect(s.title.value, '/tmp/repo');
+      s.dispose();
+    },
+  );
 
   test('a shell-set title persists while the shell stays foreground', () {
     var foreground = 'zsh';

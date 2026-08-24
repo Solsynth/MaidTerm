@@ -10,6 +10,49 @@ import 'package:window_manager/window_manager.dart';
 import 'package:maidterm_app/notifications/app_notifications.dart';
 import 'package:maidterm_app/shell/process_title_monitor.dart';
 
+/// Returns the PATH passed to a shell spawned by a packaged desktop app.
+///
+/// macOS apps launched from Finder do not inherit the user's interactive shell
+/// PATH. Keep the inherited order (important for development and custom
+/// installations), then add conventional user-tool locations so startup files
+/// can resolve tools such as Homebrew-installed `mise` and `atuin`.
+String effectiveShellPath({Map<String, String>? environment, bool? isMacOS}) {
+  final source = environment ?? Platform.environment;
+  final separator = Platform.isWindows ? ';' : ':';
+  final entries = <String>[];
+  final seen = <String>{};
+
+  void add(String? path) {
+    final value = path?.trim() ?? '';
+    if (value.isEmpty || !seen.add(value)) return;
+    entries.add(value);
+  }
+
+  for (final path in (source['PATH'] ?? '').split(separator)) {
+    add(path);
+  }
+
+  final home = source['HOME']?.trim();
+  if (isMacOS ?? Platform.isMacOS) {
+    add('/opt/homebrew/bin');
+    add('/opt/homebrew/sbin');
+    add('/usr/local/bin');
+    add('/usr/local/sbin');
+  }
+  if (home != null && home.isNotEmpty) {
+    add('$home/.local/bin');
+    add('$home/.cargo/bin');
+  }
+  return entries.join(separator);
+}
+
+Map<String, String> _shellEnvironment() => {
+  'TERM': 'xterm-256color',
+  'COLORTERM': 'truecolor',
+  'TERM_PROGRAM': 'MaidTerm',
+  'PATH': effectiveShellPath(),
+};
+
 /// Runs a local login shell inside a pty and bridges it to a
 /// [maidterm.TerminalController].
 ///
@@ -69,11 +112,7 @@ class LocalShellSession {
             workingDirectory: _spawnCwd,
             // maidpty only forwards a fixed env set; COLORTERM must be opt-in
             // or truecolor clients (fastfetch, vim, bat) silently downgrade.
-            environment: const {
-              'TERM': 'xterm-256color',
-              'COLORTERM': 'truecolor',
-              'TERM_PROGRAM': 'MaidTerm',
-            },
+            environment: _shellEnvironment(),
           )
         : Pty.attach(sessionId);
     _ptyPid = pty.pid;
