@@ -11,11 +11,11 @@ import 'package:material_ui/material_ui.dart'
     as material_ui
     show GlobalMaterialLocalizations;
 
+import 'multi_window.dart';
 import 'settings/settings_page.dart';
 import 'settings/terminal_settings.dart';
-import 'workspace/terminal_workspace.dart';
 import 'workspace/session_layout.dart';
-
+import 'workspace/terminal_workspace.dart';
 import 'workspace/terminal_workspace_page.dart';
 import 'theme.dart';
 
@@ -46,6 +46,8 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
     switch (call.method) {
       case 'newTab':
         _openTerminal();
+      case 'newWindow':
+        _openNewWindow();
       case 'splitRight':
         _split(SplitAxis.horizontal);
       case 'splitBelow':
@@ -78,6 +80,10 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
     if (paneId != null) {
       ref.read(terminalWorkspaceProvider.notifier).closePane(paneId);
     }
+  }
+
+  void _openNewWindow() {
+    ref.read(multiWindowCoordinatorProvider).openNewWindow();
   }
 
   void _openSettings() {
@@ -119,17 +125,16 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
           onGenerateRoute: (settings) => PageRouteBuilder<void>(
             transitionDuration: Duration.zero,
             reverseTransitionDuration: Duration.zero,
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                _FramePage(
-                  settingsOpen: _settingsOpen,
-                  onNewTab: _openTerminal,
-                  onSplitRight: () => _split(SplitAxis.horizontal),
-                  onSplitBelow: () => _split(SplitAxis.vertical),
-                  onCloseTab: _closeSelectedTab,
-                  onClosePane: _closeFocusedPane,
-                  onSettings: _openSettings,
-                  child: child!,
-                ),
+            pageBuilder: (context, animation, secondaryAnimation) => _FramePage(
+              settingsOpen: _settingsOpen,
+              onNewTab: _openTerminal,
+              onSplitRight: () => _split(SplitAxis.horizontal),
+              onSplitBelow: () => _split(SplitAxis.vertical),
+              onCloseTab: _closeSelectedTab,
+              onClosePane: _closeFocusedPane,
+              onSettings: _openSettings,
+              child: child!,
+            ),
           ),
         ),
       ),
@@ -138,10 +143,16 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
           const SingleActivator(LogicalKeyboardKey.comma, meta: true): () =>
               _openSettings(),
           const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
-              _openTerminal(),
+              _openNewWindow(),
+          const SingleActivator(LogicalKeyboardKey.keyN, control: true): () =>
+              _openNewWindow(),
           const SingleActivator(LogicalKeyboardKey.keyT, meta: true): () =>
               _openTerminal(),
+          const SingleActivator(LogicalKeyboardKey.keyT, control: true): () =>
+              _openTerminal(),
           const SingleActivator(LogicalKeyboardKey.keyD, meta: true): () =>
+              _split(SplitAxis.horizontal),
+          const SingleActivator(LogicalKeyboardKey.keyD, control: true): () =>
               _split(SplitAxis.horizontal),
           const SingleActivator(
             LogicalKeyboardKey.keyD,
@@ -150,6 +161,8 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
           ): () =>
               _split(SplitAxis.vertical),
           const SingleActivator(LogicalKeyboardKey.keyW, meta: true): () =>
+              _closeFocusedPane(),
+          const SingleActivator(LogicalKeyboardKey.keyW, control: true): () =>
               _closeFocusedPane(),
           const SingleActivator(
             LogicalKeyboardKey.keyW,
@@ -212,7 +225,14 @@ class _FramePage extends ConsumerWidget {
   }
 }
 
-enum _TitleBarMenuAction { newTab, splitRight, splitBelow, closeTab, closePane, settings }
+enum _TitleBarMenuAction {
+  newTab,
+  splitRight,
+  splitBelow,
+  closeTab,
+  closePane,
+  settings,
+}
 
 /// The title-bar burger menu: mirrors the macOS Terminal menu and the app
 /// shortcuts for platforms without a system menu bar.
@@ -255,9 +275,8 @@ class _TitleBarMenuButton extends StatelessWidget {
               const SizedBox(width: 24),
               Text(
                 shortcut,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: scheme.onSurfaceVariant),
               ),
             ],
           ],

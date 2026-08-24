@@ -12,6 +12,8 @@ import '../shell/local_shell_session.dart';
 import '../shell/process_title_monitor.dart';
 import 'close_confirm.dart';
 import 'session_layout.dart';
+import '../window_runtime.dart';
+import 'window_tab_transfer.dart';
 
 /// Shared poller resolving each tab's foreground process name for titles.
 final processTitleMonitorProvider = Provider<ProcessTitleMonitor>(
@@ -157,7 +159,10 @@ final terminalWorkspaceProvider =
 class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
   @override
   TerminalWorkspaceState build() {
-    final group = _createWorkspaceTab();
+    final transfer = ref.read(windowLaunchDataProvider).tab;
+    final group = transfer == null
+        ? _createWorkspaceTab()
+        : _createWorkspaceTabFromTransfer(transfer);
     return TerminalWorkspaceState(tabs: [group], selectedTabId: group.id);
   }
 
@@ -171,6 +176,30 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
       focusedPaneId: paneId,
     );
     _bindSessionExit(group, paneId, tab);
+    return group;
+  }
+
+  TerminalWorkspaceTab _createWorkspaceTabFromTransfer(
+    WorkspaceTabTransfer transfer,
+  ) {
+    final panes = <String, TerminalPane>{};
+    for (final paneTransfer in transfer.panes) {
+      final tab = _spawnTerminalTab(
+        workingDirectory: paneTransfer.workingDirectory,
+      );
+      panes[paneTransfer.id] = TerminalPane(id: paneTransfer.id, tab: tab);
+    }
+    final group = TerminalWorkspaceTab(
+      id: transfer.id,
+      panes: panes,
+      layout: WorkspaceTabTransfer.layoutFromJson(transfer.layout),
+      focusedPaneId: panes.containsKey(transfer.focusedPaneId)
+          ? transfer.focusedPaneId
+          : panes.keys.first,
+    );
+    for (final pane in panes.values) {
+      _bindSessionExit(group, pane.id, pane.tab);
+    }
     return group;
   }
 
@@ -279,6 +308,40 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     state = _rebuild(tabs: nextTabs);
   }
 
+  /// Removes a tab without confirmation so another window can own it.
+  ///
+  /// The sessions are disposed after the destination has recreated them.
+  void detachTab(String tabId, {bool disposeSessions = true}) {
+    final index = state.tabs.indexWhere((tab) => tab.id == tabId);
+    if (index < 0) return;
+    final group = state.tabs[index];
+    if (disposeSessions) {
+      for (final pane in group.panes.values) {
+        unawaited(pane.tab.session.dispose());
+      }
+    }
+    final nextTabs = [...state.tabs]..removeAt(index);
+    final nextSelected = nextTabs.isEmpty
+        ? null
+        : state.selectedTabId == tabId
+        ? nextTabs[(index - 1).clamp(0, nextTabs.length - 1)].id
+        : state.selectedTabId;
+    state = TerminalWorkspaceState(tabs: nextTabs, selectedTabId: nextSelected);
+  }
+
+  /// Recreates a tab received from another Flutter engine.
+  void importTab(WorkspaceTabTransfer transfer) {
+    if (state.tabs.any((tab) => tab.id == transfer.id)) {
+      selectTab(transfer.id);
+      return;
+    }
+    final group = _createWorkspaceTabFromTransfer(transfer);
+    state = TerminalWorkspaceState(
+      tabs: [...state.tabs, group],
+      selectedTabId: group.id,
+    );
+  }
+
   /// Closes a top-level tab and all panes it owns. When any pane still runs
   /// a program the user is asked to confirm first; [confirm] skips that for
   /// sessions that already exited on their own.
@@ -287,10 +350,9 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     if (index < 0) return;
     final group = state.tabs[index];
     if (confirm &&
-        !await confirmCloseSessions(
-          [for (final pane in group.panes.values) pane.tab.session],
-          id: 'close-running-tab:$tabId',
-        )) {
+        !await confirmCloseSessions([
+          for (final pane in group.panes.values) pane.tab.session,
+        ], id: 'close-running-tab:$tabId')) {
       return;
     }
     for (final pane in group.panes.values) {
@@ -323,10 +385,9 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
       return;
     }
     final session = group.panes[paneId]!.tab.session;
-    if (!await confirmCloseSessions(
-      [session],
-      id: 'close-running-pane:$paneId',
-    )) {
+    if (!await confirmCloseSessions([
+      session,
+    ], id: 'close-running-pane:$paneId')) {
       return;
     }
     // The layout may have changed while the modal was open.

@@ -127,5 +127,6 @@
   "themeEditorYellow": "Yellow",
   "title": "MaidTerm",
   "workspaceCloseTab": "Close tab",
-  "workspaceNewTerminal": "New Terminal"
+  "workspaceNewTerminal": "New Terminal",
+  "windowDropTab": "Drop tab to merge"
 }

@@ -127,5 +127,6 @@
   "themeEditorYellow": "黃色",
   "title": "MaidTerm",
   "workspaceCloseTab": "關閉標籤頁",
-  "workspaceNewTerminal": "新增終端"
+  "workspaceNewTerminal": "新增終端",
+  "windowDropTab": "將標籤頁拖入以合併"
 }

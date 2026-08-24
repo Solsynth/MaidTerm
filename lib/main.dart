@@ -1,3 +1,4 @@
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -6,12 +7,20 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:maidterm_app/app.dart';
 import 'package:maidterm_app/notifications/app_notifications.dart';
+import 'package:maidterm_app/window_runtime.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
   EasyLocalization.logger.enableBuildModes = [];
   await AppNotifications.initialize();
+
+  var launch = const WindowLaunchData.main();
+  if (DesktopWindowFrame.isPlatformDesktop) {
+    launch = WindowLaunchData.fromWindow(
+      await WindowController.fromCurrentEngine(),
+    );
+  }
 
   if (DesktopWindowFrame.isPlatformDesktop) {
     await windowManager.ensureInitialized();
@@ -30,6 +39,7 @@ Future<void> main() async {
 
   runApp(
     ProviderScope(
+      overrides: [windowLaunchDataProvider.overrideWithValue(launch)],
       child: EasyLocalization(
         supportedLocales: const [
           Locale('en', 'US'),

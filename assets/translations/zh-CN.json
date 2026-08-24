@@ -127,5 +127,6 @@
   "themeEditorYellow": "黄色",
   "title": "MaidTerm",
   "workspaceCloseTab": "关闭标签页",
-  "workspaceNewTerminal": "新建终端"
+  "workspaceNewTerminal": "新建终端",
+  "windowDropTab": "将标签页拖入以合并"
 }

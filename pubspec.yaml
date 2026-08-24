@@ -25,6 +25,7 @@ dependencies:
     sdk: flutter
   maidterm:
     path: packages/maidterm
+  desktop_multi_window: ^0.3.0
   window_manager:
     git:
       url: https://github.com/boyan01/window_manager.git

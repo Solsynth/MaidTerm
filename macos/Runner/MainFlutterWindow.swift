@@ -1,6 +1,6 @@
 import Cocoa
 import FlutterMacOS
-
+import desktop_multi_window
 class MainFlutterWindow: NSWindow {
   private var terminalMenuTarget: TerminalMenuTarget?
 
@@ -11,6 +11,9 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
+      RegisterGeneratedPlugins(registry: controller)
+    }
 
     super.awakeFromNib()
 
@@ -32,6 +35,7 @@ class MainFlutterWindow: NSWindow {
     }
     let terminalMenu = NSMenu(title: "Terminal")
     terminalMenu.addItem(menuItem("New Tab", key: "t", target: target, action: #selector(TerminalMenuTarget.newTab(_:))))
+    terminalMenu.addItem(menuItem("New Window", key: "n", target: target, action: #selector(TerminalMenuTarget.newWindow(_:))))
     terminalMenu.addItem(menuItem("Split Pane Right", key: "d", target: target, action: #selector(TerminalMenuTarget.splitRight(_:))))
     terminalMenu.addItem(menuItem("Split Pane Below", key: "d", modifiers: [.command, .shift], target: target, action: #selector(TerminalMenuTarget.splitBelow(_:))))
     terminalMenu.addItem(.separator())
@@ -68,6 +72,10 @@ private final class TerminalMenuTarget: NSObject {
 
   @objc func newTab(_ sender: Any?) {
     channel.invokeMethod("newTab", arguments: nil)
+  }
+
+  @objc func newWindow(_ sender: Any?) {
+    channel.invokeMethod("newWindow", arguments: nil)
   }
 
   @objc func splitRight(_ sender: Any?) {

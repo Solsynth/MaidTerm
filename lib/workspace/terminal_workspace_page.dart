@@ -8,70 +8,87 @@ import 'package:maidterm/maidterm.dart' as maidterm;
 import '../settings/terminal_color_scheme.dart';
 import '../settings/terminal_settings.dart';
 import '../settings/background_image.dart';
+import '../multi_window.dart';
 
 import 'session_layout.dart';
 import 'terminal_surface.dart';
+import 'window_tab_transfer.dart';
 import 'terminal_workspace.dart';
 
 /// The main screen: one workspace-wide tab strip around resizable split panes.
 class TerminalWorkspacePage extends ConsumerWidget {
   const TerminalWorkspacePage({super.key});
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final coordinator = ref.watch(multiWindowCoordinatorProvider);
     final workspace = ref.watch(terminalWorkspaceProvider);
+    late final Widget content;
     if (workspace.tabs.isEmpty) {
-      return _EmptyWorkspace();
+      content = _EmptyWorkspace();
+    } else {
+      final root = workspace.layout;
+      if (root == null) {
+        content = _EmptyWorkspace();
+      } else {
+        final settings = ref.watch(terminalSettingsProvider).value;
+        final tabBarPosition = settings?.tabBarPosition ?? TabBarPosition.top;
+        final tabBar = _ResizableTabBar(
+          position: tabBarPosition,
+          initialWidth: settings?.tabBarWidth ?? _workspaceTabBarWidth,
+          onWidthChanged: (width) {
+            if (settings != null) {
+              ref.read(terminalSettingsProvider.notifier).setTabBarWidth(width);
+            }
+          },
+          builder: (width, height) => _WorkspaceTabBar(
+            workspace: workspace,
+            position: tabBarPosition,
+            width: width,
+            height: height,
+          ),
+        );
+        final vertical =
+            tabBarPosition == TabBarPosition.left ||
+            tabBarPosition == TabBarPosition.right;
+        final tabBarFirst =
+            tabBarPosition == TabBarPosition.top ||
+            tabBarPosition == TabBarPosition.left;
+        final ground = _WorkspaceGround(child: _LayoutNode(node: root));
+        final layout = Expanded(
+          child: vertical
+              ? ClipRRect(
+                  key: const ValueKey('workspace-ground-clip'),
+                  borderRadius: BorderRadius.only(
+                    topLeft: tabBarPosition == TabBarPosition.left
+                        ? const Radius.circular(_workspaceCornerRadius)
+                        : Radius.zero,
+                    topRight: tabBarPosition == TabBarPosition.right
+                        ? const Radius.circular(_workspaceCornerRadius)
+                        : Radius.zero,
+                  ),
+                  child: ground,
+                )
+              : ground,
+        );
+        content = vertical
+            ? Row(children: tabBarFirst ? [tabBar, layout] : [layout, tabBar])
+            : Column(
+                children: tabBarFirst ? [tabBar, layout] : [layout, tabBar],
+              );
+      }
     }
-    final root = workspace.layout;
-    if (root == null) return _EmptyWorkspace();
 
-    final settings = ref.watch(terminalSettingsProvider).value;
-    final tabBarPosition = settings?.tabBarPosition ?? TabBarPosition.top;
-    final tabBar = _ResizableTabBar(
-      position: tabBarPosition,
-      initialWidth: settings?.tabBarWidth ?? _workspaceTabBarWidth,
-      onWidthChanged: (width) {
-        if (settings != null) {
-          ref.read(terminalSettingsProvider.notifier).setTabBarWidth(width);
-        }
-      },
-      builder: (width, height) => _WorkspaceTabBar(
-        workspace: workspace,
-        position: tabBarPosition,
-        width: width,
-        height: height,
+    return ValueListenableBuilder<ExternalWorkspaceDrag?>(
+      valueListenable: coordinator.externalDrag,
+      builder: (context, drag, child) => Stack(
+        fit: StackFit.expand,
+        children: [
+          child!,
+          if (drag != null) _ExternalDropOverlay(coordinator: coordinator),
+        ],
       ),
+      child: content,
     );
-    final vertical =
-        tabBarPosition == TabBarPosition.left ||
-        tabBarPosition == TabBarPosition.right;
-    final tabBarFirst =
-        tabBarPosition == TabBarPosition.top ||
-        tabBarPosition == TabBarPosition.left;
-    final ground = _WorkspaceGround(child: _LayoutNode(node: root));
-    final layout = Expanded(
-      child: vertical
-          // The corner tucking the ground under the title bar beside a
-          // vertical (left/right) tab bar, mirroring MaidKit's content sheet.
-          ? ClipRRect(
-              key: const ValueKey('workspace-ground-clip'),
-              borderRadius: BorderRadius.only(
-                topLeft: tabBarPosition == TabBarPosition.left
-                    ? const Radius.circular(_workspaceCornerRadius)
-                    : Radius.zero,
-                topRight: tabBarPosition == TabBarPosition.right
-                    ? const Radius.circular(_workspaceCornerRadius)
-                    : Radius.zero,
-              ),
-              child: ground,
-            )
-          : ground,
-    );
-
-    return vertical
-        ? Row(children: tabBarFirst ? [tabBar, layout] : [layout, tabBar])
-        : Column(children: tabBarFirst ? [tabBar, layout] : [layout, tabBar]);
   }
 }
 
@@ -85,6 +102,36 @@ class _EmptyWorkspace extends ConsumerWidget {
               ref.read(terminalWorkspaceProvider.notifier).openTerminal(),
           icon: const Icon(Symbols.add),
           label: Text('workspaceNewTerminal'.tr()),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExternalDropOverlay extends StatelessWidget {
+  const _ExternalDropOverlay({required this.coordinator});
+
+  final MultiWindowCoordinator coordinator;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerUp: (_) => coordinator.acceptExternalDrag(),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: scheme.primary.withValues(alpha: 0.14),
+          border: Border.all(color: scheme.primary, width: 2),
+        ),
+        child: Center(
+          child: Text(
+            'windowDropTab'.tr(),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ),
     );
@@ -383,9 +430,11 @@ const _workspaceTabBarHeight = 40.0;
 const _workspaceTabBarWidth = 180.0;
 const _compactTabBarWidth = 160.0;
 const _minWorkspaceTabBarWidth = 48.0;
+
 /// The floating-land chrome: a ring of ground around the whole layout and
 /// between split panes, plus the land rounding.
 const _workspaceGroundPadding = 10.0;
+
 /// The corner that tucks the workspace ground under the title bar beside a
 /// vertical (left/right) tab bar, mirroring MaidKit's rounded content sheet.
 const _workspaceCornerRadius = 12.0;
@@ -545,6 +594,7 @@ class _WorkspaceTabBar extends ConsumerWidget {
   Widget _buildTabBar(BuildContext context, WidgetRef ref, bool compact) {
     final scheme = Theme.of(context).colorScheme;
     final notifier = ref.read(terminalWorkspaceProvider.notifier);
+    final coordinator = ref.read(multiWindowCoordinatorProvider);
 
     void reorderTab(String tabId, {int? toIndex}) {
       notifier.reorderTab(tabId, toIndex ?? workspace.tabs.length);
@@ -602,6 +652,13 @@ class _WorkspaceTabBar extends ConsumerWidget {
                   child: tabEntry,
                   onAccept: (data, insertIndex) =>
                       reorderTab(data.tabId, toIndex: insertIndex),
+                  onDragStarted: () => coordinator.dragStarted(
+                    WorkspaceTabTransfer.fromTab(tab),
+                  ),
+                  onDragEnd: (accepted) => coordinator.dragEnded(
+                    WorkspaceTabTransfer.fromTab(tab),
+                    wasAccepted: accepted,
+                  ),
                 );
               },
             ),
@@ -757,6 +814,8 @@ class _DraggableWorkspaceTab extends StatelessWidget {
     required this.height,
     required this.child,
     required this.onAccept,
+    required this.onDragStarted,
+    required this.onDragEnd,
   });
 
   final TerminalWorkspaceTab tab;
@@ -765,6 +824,8 @@ class _DraggableWorkspaceTab extends StatelessWidget {
   final double height;
   final Widget child;
   final void Function(_TabDragData data, int insertIndex) onAccept;
+  final VoidCallback onDragStarted;
+  final ValueChanged<bool> onDragEnd;
 
   bool get _vertical =>
       position == TabBarPosition.left || position == TabBarPosition.right;
@@ -796,6 +857,8 @@ class _DraggableWorkspaceTab extends StatelessWidget {
     final draggable = isMobile
         ? LongPressDraggable<_TabDragData>(
             data: dragData,
+            onDragStarted: onDragStarted,
+            onDragEnd: (details) => onDragEnd(details.wasAccepted),
             dragAnchorStrategy: pointerDragAnchorStrategy,
             feedback: feedback,
             childWhenDragging: Opacity(opacity: 0.35, child: child),
@@ -805,6 +868,8 @@ class _DraggableWorkspaceTab extends StatelessWidget {
             data: dragData,
             dragAnchorStrategy: pointerDragAnchorStrategy,
             feedback: feedback,
+            onDragStarted: onDragStarted,
+            onDragEnd: (details) => onDragEnd(details.wasAccepted),
             childWhenDragging: Opacity(opacity: 0.35, child: child),
             child: child,
           );
