@@ -430,8 +430,7 @@ class TerminalViewState extends State<TerminalView> {
 
   Future<void> _handlePaste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data?.text == null || data!.text!.isEmpty) return;
-    _controller.paste(data.text!);
+    _controller.paste(data?.text ?? '', allowEmpty: true);
   }
 
   void _handleResize(int cols, int rows, int pixelWidth, int pixelHeight) {

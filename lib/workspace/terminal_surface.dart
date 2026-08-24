@@ -46,15 +46,17 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
   }
 
   /// Inserts OS-dropped file paths into the terminal input line, each
-  /// shell-quoted so it reads as one argument. The terminal keeps focus so
-  /// the user can keep typing (or press Enter) right after the drop.
+  /// shell-quoted so it reads as one argument. Paste encoding is preserved
+  /// so image-aware TUIs can recognize image paths in bracketed paste data.
+  /// The terminal keeps focus so the user can keep typing (or press Enter)
+  /// right after the drop.
   void _handleDrop(DropDoneDetails details) {
     final paths = details.files
         .map((file) => file.path)
         .where((path) => path.isNotEmpty)
         .toList();
     if (paths.isEmpty) return;
-    widget.tab.session.controller.sendText(formatDroppedPaths(paths));
+    widget.tab.session.controller.paste(formatDroppedPaths(paths));
     _focusNode.requestFocus();
   }
 
@@ -197,8 +199,8 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
                 linkSettings: maidterm.LinkSettings(
                   onActivate: _handleLinkActivate,
                 ),
-                onVisualFullScreenChanged: widget.tab.session
-                    .setVisualFullScreen,
+                onVisualFullScreenChanged:
+                    widget.tab.session.setVisualFullScreen,
               ),
               if (_dragHovered)
                 Positioned.fill(
@@ -206,10 +208,7 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
                     child: Container(
                       key: const ValueKey('file-drop-highlight'),
                       decoration: BoxDecoration(
-                        border: Border.all(
-                          color: scheme.selection,
-                          width: 2,
-                        ),
+                        border: Border.all(color: scheme.selection, width: 2),
                         // Matches the pane radius in terminal_workspace_page
                         // so the outline hugs the pane border, not the
                         // terminal's padded grid area.

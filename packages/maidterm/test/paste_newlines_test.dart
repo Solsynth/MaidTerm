@@ -66,5 +66,26 @@ void main() {
       final text = utf8.decode(outputs.single, allowMalformed: true);
       expect(text, 'a\rb');
     });
+
+    test('empty paste emits bracketed fenceposts when explicitly allowed', () {
+      final c = controller();
+      final outputs = <Uint8List>[];
+      c.onOutput = outputs.add;
+
+      c.write(Uint8List.fromList('\x1b[?2004h'.codeUnits));
+      c.paste('', allowEmpty: true);
+
+      expect(utf8.decode(outputs.single), '\x1b[200~\x1b[201~');
+    });
+
+    test('empty paste remains a no-op by default', () {
+      final c = controller();
+      final outputs = <Uint8List>[];
+      c.onOutput = outputs.add;
+
+      c.paste('');
+
+      expect(outputs, isEmpty);
+    });
   });
 }

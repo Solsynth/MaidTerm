@@ -66,10 +66,7 @@ void main() {
     });
 
     test('quotes shell metacharacters', () {
-      expect(
-        escapeDropPath(r'/tmp/$(rm -rf ~)/*'),
-        r"'/tmp/$(rm -rf ~)/*'",
-      );
+      expect(escapeDropPath(r'/tmp/$(rm -rf ~)/*'), r"'/tmp/$(rm -rf ~)/*'");
     });
 
     test('empty path stays empty', () {
@@ -79,10 +76,7 @@ void main() {
 
   group('formatDroppedPaths', () {
     test('joins paths with a space and appends a trailing space', () {
-      expect(
-        formatDroppedPaths(['/a/b', '/c d']),
-        r"/a/b '/c d' ",
-      );
+      expect(formatDroppedPaths(['/a/b', '/c d']), r"/a/b '/c d' ");
     });
 
     test('drops empty paths', () {
@@ -128,6 +122,34 @@ void main() {
     );
   });
 
+  testWidgets('OS file drop preserves bracketed paste for image-aware TUIs', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+
+    final page = find.byType(TerminalWorkspacePage);
+    final container = ProviderScope.containerOf(tester.element(page));
+    final session = container
+        .read(terminalWorkspaceProvider)
+        .selectedTab!
+        .session;
+    final emitted = <int>[];
+    session.controller.onOutput = emitted.addAll;
+    session.controller.write(utf8.encode('\x1b[?2004h'));
+
+    final dropTarget = tester.widget<DropTarget>(find.byType(DropTarget));
+    dropTarget.onDragDone!(
+      DropDoneDetails(
+        files: [DropItemFile('/tmp/screenshot.png')],
+        localPosition: Offset.zero,
+        globalPosition: Offset.zero,
+      ),
+    );
+
+    expect(utf8.decode(emitted), '\x1b[200~/tmp/screenshot.png \x1b[201~');
+  });
+
   testWidgets('empty drop inserts nothing', (tester) async {
     await tester.pumpWidget(buildWorkspace());
     await tester.pumpAndSettle();
@@ -153,9 +175,7 @@ void main() {
     expect(emitted, isEmpty);
   });
 
-  testWidgets('drag hover shows and hides the drop highlight', (
-    tester,
-  ) async {
+  testWidgets('drag hover shows and hides the drop highlight', (tester) async {
     await tester.pumpWidget(buildWorkspace());
     await tester.pumpAndSettle();
 
@@ -173,8 +193,7 @@ void main() {
     // corner radius as the pane backdrop.
     final highlightContainer = tester.widget<Container>(highlight);
     expect(highlightContainer.margin, isNull);
-    final decoration =
-        highlightContainer.decoration! as BoxDecoration;
+    final decoration = highlightContainer.decoration! as BoxDecoration;
     expect(decoration.borderRadius, BorderRadius.circular(14));
     final highlightSize = tester.getSize(highlight);
     final terminalSize = tester.getSize(find.byType(maidterm.TerminalView));

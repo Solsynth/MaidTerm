@@ -175,7 +175,12 @@ abstract class TerminalController extends ChangeNotifier
   /// Wraps the text in bracketed paste sequences when the terminal
   /// has bracketed paste mode enabled. Scrolls to bottom based on
   /// [TerminalConfig.scrollToBottom] policy.
-  void paste(String text);
+  ///
+  /// When [allowEmpty] is true, an empty string still emits an empty
+  /// bracketed-paste payload when bracketed paste mode is enabled. This lets
+  /// applications such as image-aware TUIs use an image-only clipboard paste
+  /// as a signal to read the native clipboard themselves.
+  void paste(String text, {bool allowEmpty = false});
 
   /// Requests keyboard focus for the attached [TerminalView].
   void requestFocus();

@@ -504,9 +504,10 @@ class TerminalControllerImpl extends TerminalController
   }
 
   @override
-  void paste(String text) {
-    if (text.isEmpty) return;
+  void paste(String text, {bool allowEmpty = false}) {
+    if (text.isEmpty && !allowEmpty) return;
     final bracketed = terminal.modeGet(const .bracketedPaste());
+    if (text.isEmpty && !bracketed) return;
     _emitOutput(
       pasteEncode(_normalizePasteNewlines(text), bracketed: bracketed),
     );
