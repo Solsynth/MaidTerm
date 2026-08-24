@@ -42,15 +42,31 @@ class TerminalWorkspacePage extends ConsumerWidget {
         height: height,
       ),
     );
-    final layout = Expanded(
-      child: _WorkspaceGround(child: _LayoutNode(node: root)),
-    );
     final vertical =
         tabBarPosition == TabBarPosition.left ||
         tabBarPosition == TabBarPosition.right;
     final tabBarFirst =
         tabBarPosition == TabBarPosition.top ||
         tabBarPosition == TabBarPosition.left;
+    final ground = _WorkspaceGround(child: _LayoutNode(node: root));
+    final layout = Expanded(
+      child: vertical
+          // The corner tucking the ground under the title bar beside a
+          // vertical (left/right) tab bar, mirroring MaidKit's content sheet.
+          ? ClipRRect(
+              key: const ValueKey('workspace-ground-clip'),
+              borderRadius: BorderRadius.only(
+                topLeft: tabBarPosition == TabBarPosition.left
+                    ? const Radius.circular(_workspaceCornerRadius)
+                    : Radius.zero,
+                topRight: tabBarPosition == TabBarPosition.right
+                    ? const Radius.circular(_workspaceCornerRadius)
+                    : Radius.zero,
+              ),
+              child: ground,
+            )
+          : ground,
+    );
 
     return vertical
         ? Row(children: tabBarFirst ? [tabBar, layout] : [layout, tabBar])
@@ -74,7 +90,7 @@ class _EmptyWorkspace extends ConsumerWidget {
   }
 }
 
-/// The workspace ground: a `surfaceContainer` field (or the subdued
+/// The workspace ground: a `surface` field (or the subdued
 /// background image) that the floating pane lands sit on. Panes float above
 /// it with a ring of ground visible around every edge.
 class _WorkspaceGround extends ConsumerWidget {
@@ -96,7 +112,7 @@ class _WorkspaceGround extends ConsumerWidget {
     return DecoratedBox(
       key: const ValueKey('workspace-ground'),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainer,
+        color: scheme.surface,
         // One image spans the whole pane layout: split panes share it
         // instead of each rendering their own copy.
         image: hasBackgroundImage
@@ -369,6 +385,9 @@ const _minWorkspaceTabBarWidth = 48.0;
 /// The floating-land chrome: a ring of ground around the whole layout and
 /// between split panes, plus the land rounding.
 const _workspaceGroundPadding = 10.0;
+/// The corner that tucks the workspace ground under the title bar beside a
+/// vertical (left/right) tab bar, mirroring MaidKit's rounded content sheet.
+const _workspaceCornerRadius = 12.0;
 const _paneGap = 10.0;
 const _paneRadius = 14.0;
 const _tabBarHandleWidth = 1.0;

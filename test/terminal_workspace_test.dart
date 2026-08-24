@@ -143,6 +143,48 @@ void main() {
     }
   });
 
+  testWidgets('rounds the workspace ground beside a vertical tab bar', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final clip = find.byKey(const ValueKey('workspace-ground-clip'));
+    // Mirrors MaidKit's rounded content sheet: a vertical tab bar clips the
+    // ground corner it sits beside; a horizontal bar leaves the ground
+    // square against the title bar.
+    const cases = {
+      'left': BorderRadius.only(topLeft: Radius.circular(12)),
+      'right': BorderRadius.only(topRight: Radius.circular(12)),
+      'top': null,
+      'bottom': null,
+    };
+    for (final entry in cases.entries) {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      SharedPreferences.setMockInitialValues({
+        'terminal.tabBarPosition': entry.key,
+      });
+      await tester.pumpWidget(buildWorkspace());
+      await tester.pumpAndSettle();
+
+      final corner = entry.value;
+      if (corner == null) {
+        expect(clip, findsNothing, reason: '${entry.key} tab bar');
+      } else {
+        expect(clip, findsOneWidget, reason: '${entry.key} tab bar');
+        final border = tester.widget<ClipRRect>(clip).borderRadius as BorderRadius;
+        // BorderRadius does not compare by value; inspect each corner.
+        expect(border.topLeft.x, corner.topLeft.x,
+            reason: '${entry.key} top-left');
+        expect(border.topRight.x, corner.topRight.x,
+            reason: '${entry.key} top-right');
+        expect(border.bottomLeft.x, 0, reason: '${entry.key} bottom-left');
+        expect(border.bottomRight.x, 0, reason: '${entry.key} bottom-right');
+      }
+    }
+  });
+
   testWidgets('keeps top tab bar expanded at narrow widths', (tester) async {
     await tester.binding.setSurfaceSize(const Size(560, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
