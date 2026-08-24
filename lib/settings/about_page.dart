@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:material_ui/material_ui.dart';
@@ -51,7 +52,7 @@ class AboutPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('About'),
+        title: Text('aboutTitle'.tr()),
         elevation: 0,
         backgroundColor: colorScheme.surface,
         surfaceTintColor: Colors.transparent,
@@ -76,7 +77,7 @@ class AboutPage extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 32),
                     child: Text(
-                      'Could not load app details: $error',
+                      'aboutLoadError'.tr(args: ['$error']),
                       style: TextStyle(color: colorScheme.onSurfaceVariant),
                     ),
                   ),
@@ -93,7 +94,7 @@ class AboutPage extends ConsumerWidget {
   List<Widget> _infoSections(BuildContext context, PackageInfo info) {
     final theme = Theme.of(context);
     return [
-      const _SectionTitle('App info'),
+      _SectionTitle('aboutAppInfo'.tr()),
       const SizedBox(height: 8),
       Card(
         clipBehavior: Clip.antiAlias,
@@ -101,20 +102,20 @@ class AboutPage extends ConsumerWidget {
           children: [
             ListTile(
               leading: const Icon(Symbols.info),
-              title: const Text('Version'),
+              title: Text('aboutVersion'.tr()),
               subtitle: Text(info.version, style: _monoStyle(theme)),
             ),
             const Divider(height: 1),
             ListTile(
               leading: const Icon(Symbols.build),
-              title: const Text('Build'),
+              title: Text('aboutBuild'.tr()),
               subtitle: Text(info.buildNumber, style: _monoStyle(theme)),
             ),
             if (info.packageName.isNotEmpty) ...[
               const Divider(height: 1),
               ListTile(
                 leading: const Icon(Symbols.inventory_2),
-                title: const Text('Package'),
+                title: Text('aboutPackage'.tr()),
                 subtitle: SelectableText(
                   info.packageName,
                   style: _monoStyle(theme),
@@ -125,7 +126,7 @@ class AboutPage extends ConsumerWidget {
         ),
       ),
       const SizedBox(height: 24),
-      const _SectionTitle('Related products'),
+      _SectionTitle('aboutRelatedProducts'.tr()),
       const SizedBox(height: 8),
       Card(
         clipBehavior: Clip.antiAlias,
@@ -134,31 +135,28 @@ class AboutPage extends ConsumerWidget {
             _ProductLinkTile(
               icon: Symbols.dns,
               title: 'MaidKit',
-              subtitle:
-                  'A cross-platform SSH server manager — maintain servers '
-                  'without installing anything on them.',
+              subtitle: 'aboutMaidKitDescription'.tr(),
               url: 'https://solsynth.dev/products/maid-kit',
             ),
             const Divider(height: 1),
             _ProductLinkTile(
               icon: Symbols.public,
               title: 'Solar Network',
-              subtitle:
-                  'A social network for technology, programming, and ACG fans.',
+              subtitle: 'aboutSolarNetworkDescription'.tr(),
               url: 'https://solsynth.dev/products/solar-network',
             ),
           ],
         ),
       ),
       const SizedBox(height: 24),
-      const _SectionTitle('Updates'),
+      _SectionTitle('aboutUpdates'.tr()),
       const SizedBox(height: 8),
       Card(
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           leading: const Icon(Symbols.system_update),
-          title: const Text('Check for updates'),
-          subtitle: const Text('Look for a newer release on Solsynth Express.'),
+          title: Text('aboutCheckForUpdates'.tr()),
+          subtitle: Text('aboutUpdateSubtitle'.tr()),
           trailing: const Icon(Symbols.chevron_right),
           onTap: () {
             UpdateService(
@@ -171,16 +169,14 @@ class AboutPage extends ConsumerWidget {
         ),
       ),
       const SizedBox(height: 24),
-      const _SectionTitle('Licenses'),
+      _SectionTitle('aboutLicenses'.tr()),
       const SizedBox(height: 8),
       Card(
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           leading: const Icon(Symbols.description),
-          title: const Text('Open-source licenses'),
-          subtitle: const Text(
-            'The packages, engine, and fonts that power MaidTerm.',
-          ),
+          title: Text('aboutOpenSourceLicenses'.tr()),
+          subtitle: Text('aboutLicensesSubtitle'.tr()),
           trailing: const Icon(Symbols.chevron_right),
           onTap: () => showLicensePage(
             context: context,
@@ -202,7 +198,7 @@ class AboutPage extends ConsumerWidget {
       const SizedBox(height: 36),
       Center(
         child: Text(
-          '© ${DateTime.now().year} Solsynth',
+          'aboutCopyright'.tr(args: ['${DateTime.now().year}']),
           style: _footerStyle(theme),
         ),
       ),
@@ -250,7 +246,7 @@ class _TerminalHero extends StatelessWidget {
                 const SizedBox(height: 10),
                 _PromptLine(
                   color: face,
-                  text: 'local-first terminal for macOS, Windows, and Linux',
+                  text: 'aboutTagline'.tr(),
                 ),
               ],
             ),

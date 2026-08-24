@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
 
@@ -27,7 +28,7 @@ class SettingsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text('settingsTitle'.tr()),
         elevation: 0,
         backgroundColor: colors.surface,
         surfaceTintColor: Colors.transparent,
@@ -47,8 +48,8 @@ class SettingsPage extends ConsumerWidget {
                   )
                 else ...[
                   _SettingsSection(
-                    title: 'Appearance',
-                    description: 'Theme and accent used across the workspace.',
+                    title: 'settingsAppearance'.tr(),
+                    description: 'settingsAppearanceDescription'.tr(),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -59,25 +60,25 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ),
                   _SettingsSection(
-                    title: 'Background image',
-                    description: 'Show a subtle image behind transparent terminal surfaces.',
+                    title: 'settingsBackgroundImage'.tr(),
+                    description: 'settingsBackgroundImageDescription'.tr(),
                     child: const _BackgroundImageSettings(),
                   ),
                   _SettingsSection(
-                    title: 'Typography',
-                    description: 'Choose the face and scale of terminal text.',
+                    title: 'settingsTypography'.tr(),
+                    description: 'settingsTypographyDescription'.tr(),
                     child: const _TerminalFontDropdown(),
                   ),
                   _SettingsSection(
-                    title: 'Behavior',
-                    description: 'Small details that shape the terminal feel.',
+                    title: 'settingsBehavior'.tr(),
+                    description: 'settingsBehaviorDescription'.tr(),
                     child: Column(
                       children: [
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Cursor blink'),
-                          subtitle: const Text(
-                            'Show movement when the terminal is ready',
+                          title: Text('settingsCursorBlink'.tr()),
+                          subtitle: Text(
+                            'settingsCursorBlinkDescription'.tr(),
                           ),
                           value: data.cursorBlink,
                           onChanged: (v) => ref
@@ -86,24 +87,24 @@ class SettingsPage extends ConsumerWidget {
                         ),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Cursor style'),
-                          subtitle: const Text(
-                            'The shape used for the active cell',
+                          title: Text('settingsCursorStyle'.tr()),
+                          subtitle: Text(
+                            'settingsCursorStyleDescription'.tr(),
                           ),
                           trailing: DropdownButton<maidterm.CursorShape>(
                             value: data.cursorStyle,
-                            items: const [
+                            items: [
                               DropdownMenuItem(
                                 value: maidterm.CursorShape.block,
-                                child: Text('Block'),
+                                child: Text('settingsCursorBlock'.tr()),
                               ),
                               DropdownMenuItem(
                                 value: maidterm.CursorShape.bar,
-                                child: Text('Bar'),
+                                child: Text('settingsCursorBar'.tr()),
                               ),
                               DropdownMenuItem(
                                 value: maidterm.CursorShape.underline,
-                                child: Text('Underline'),
+                                child: Text('settingsCursorUnderline'.tr()),
                               ),
                             ],
                             onChanged: (v) {
@@ -117,9 +118,9 @@ class SettingsPage extends ConsumerWidget {
                         ),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Transparent background'),
-                          subtitle: const Text(
-                            'Show the workspace background through the terminal',
+                          title: Text('settingsTransparentBackground'.tr()),
+                          subtitle: Text(
+                            'settingsTransparentBackgroundDescription'.tr(),
                           ),
                           value: data.transparentBackground,
                           onChanged: (v) => ref
@@ -130,21 +131,20 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ),
                   _SettingsSection(
-                    title: 'Tab bar',
+                    title: 'settingsTabBar'.tr(),
                     description:
-                        'Choose where the shared workspace tab bar appears.',
+                        'settingsTabBarDescription'.tr(),
                     child: _TabBarPositionPicker(settings: data),
                   ),
                   _SettingsSection(
-                    title: 'Title bar',
+                    title: 'settingsTitleBar'.tr(),
                     description:
-                        'Window chrome for platforms without a system menu bar.',
+                        'settingsTitleBarDescription'.tr(),
                     child: SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Show menu button'),
-                      subtitle: const Text(
-                        'Shows the app menu at the top-left of the title bar '
-                        'and centers the title',
+                      title: Text('settingsShowMenuButton'.tr()),
+                      subtitle: Text(
+                        'settingsShowMenuButtonDescription'.tr(),
                       ),
                       value: data.showTitleBarMenuButton,
                       onChanged: (v) => ref
@@ -153,8 +153,8 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ),
                   _SettingsSection(
-                    title: 'Pane margins',
-                    description: 'Set independent margins for normal output and terminal UIs that paint almost the full grid.',
+                    title: 'settingsPaneMargins'.tr(),
+                    description: 'settingsPaneMarginsDescription'.tr(),
                     child: _PaneMarginSettings(
                       normalMargin: data.normalPaneMargin,
                       fullScreenMargin: data.fullScreenPaneMargin,
@@ -167,9 +167,9 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ),
                   _SettingsSection(
-                    title: 'Terminal themes',
+                    title: 'settingsTerminalThemes'.tr(),
                     description:
-                        'Tune the palettes used in light and dark mode.',
+                        'settingsTerminalThemesDescription'.tr(),
                     child: Column(
                       children: [
                         _TerminalThemeTile(
@@ -188,16 +188,16 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ),
                   _SettingsSection(
-                    title: 'Shell',
-                    description: 'Use a specific shell, or leave this blank for the system default.',
+                    title: 'settingsShell'.tr(),
+                    description: 'settingsShellDescription'.tr(),
                     child: TextField(
                       controller: TextEditingController(
                         text: data.shellPath ?? '',
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Shell path',
-                        hintText: 'Default shell',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: 'settingsShellPath'.tr(),
+                        hintText: 'settingsShellDefaultHint'.tr(),
+                        border: const OutlineInputBorder(),
                       ),
                       onSubmitted: (v) => ref
                           .read(terminalSettingsProvider.notifier)
@@ -205,13 +205,13 @@ class SettingsPage extends ConsumerWidget {
                     ),
                   ),
                   _SettingsSection(
-                    title: 'About',
+                    title: 'settingsAbout'.tr(),
                     description:
-                        'Version, engine credits, and open-source licenses.',
+                        'settingsAboutDescription'.tr(),
                     child: ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Symbols.info),
-                      title: const Text('About MaidTerm'),
+                      title: Text('settingsAboutTile'.tr()),
                                             trailing: const Icon(Symbols.chevron_right),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
@@ -265,7 +265,7 @@ class _SettingsIntro extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'TERMINAL PREFERENCES',
+            'settingsTerminalPreferences'.tr(),
             style: theme.textTheme.labelSmall?.copyWith(
               fontFamily: 'IBM Plex Mono',
               letterSpacing: 1.4,
@@ -287,11 +287,23 @@ class _TabBarPositionPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SegmentedButton<TabBarPosition>(
-      segments: const [
-        ButtonSegment(value: TabBarPosition.top, label: Text('Top')),
-        ButtonSegment(value: TabBarPosition.bottom, label: Text('Bottom')),
-        ButtonSegment(value: TabBarPosition.left, label: Text('Left')),
-        ButtonSegment(value: TabBarPosition.right, label: Text('Right')),
+      segments: [
+        ButtonSegment(
+          value: TabBarPosition.top,
+          label: Text('settingsTabBarTop'.tr()),
+        ),
+        ButtonSegment(
+          value: TabBarPosition.bottom,
+          label: Text('settingsTabBarBottom'.tr()),
+        ),
+        ButtonSegment(
+          value: TabBarPosition.left,
+          label: Text('settingsTabBarLeft'.tr()),
+        ),
+        ButtonSegment(
+          value: TabBarPosition.right,
+          label: Text('settingsTabBarRight'.tr()),
+        ),
       ],
       selected: {settings.tabBarPosition},
       onSelectionChanged: (selection) => ref
@@ -340,13 +352,13 @@ class _BackgroundImageSettings extends ConsumerWidget {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Show background image'),
+            title: Text('settingsBackgroundShow'.tr()),
             value: enabled,
             onChanged: (value) => setMaidTermBackgroundImageEnabled(ref, value),
           ),
         ] else
           Text(
-            'No image selected.',
+            'settingsBackgroundNoImage'.tr(),
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -359,13 +371,13 @@ class _BackgroundImageSettings extends ConsumerWidget {
             OutlinedButton.icon(
               onPressed: () => _chooseImage(context, ref),
               icon: const Icon(Symbols.image),
-              label: const Text('Choose image'),
+              label: Text('settingsBackgroundChoose'.tr()),
             ),
             if (image != null)
               TextButton.icon(
                 onPressed: () => clearMaidTermBackgroundImage(ref),
                 icon: const Icon(Symbols.delete_outline),
-                label: const Text('Clear image'),
+                label: Text('settingsBackgroundClear'.tr()),
               ),
           ],
         ),
@@ -377,7 +389,7 @@ class _BackgroundImageSettings extends ConsumerWidget {
     // MaidTerm is intentionally not sandboxed. file_picker's entitlement
     // guard must be bypassed for this desktop configuration.
     final selection = await FilePicker.pickFiles(
-      dialogTitle: 'Choose background image',
+      dialogTitle: 'settingsBackgroundChooseDialog'.tr(),
       type: FileType.image,
     );
     if (selection == null || selection.files.isEmpty) return;
@@ -389,7 +401,7 @@ class _BackgroundImageSettings extends ConsumerWidget {
     } on Object catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save background image: $error')),
+        SnackBar(content: Text('settingsBackgroundSaveError'.tr(args: ['$error']))),
       );
     }
   }
@@ -415,14 +427,14 @@ class _PaneMarginSettings extends StatelessWidget {
       children: [
         _PaneMarginEditor(
           key: const ValueKey('normal-pane-margin'),
-          title: 'Normal mode',
+          title: 'settingsPaneNormalMode'.tr(),
           margin: normalMargin,
           onChanged: onNormalChanged,
         ),
         const SizedBox(height: 20),
         _PaneMarginEditor(
           key: const ValueKey('fullscreen-pane-margin'),
-          title: 'Full-screen mode',
+          title: 'settingsPaneFullScreenMode'.tr(),
           margin: fullScreenMargin,
           onChanged: onFullScreenChanged,
         ),
@@ -519,7 +531,7 @@ class _PaneMarginEditorState extends State<_PaneMarginEditor> {
                   ),
                   textInputAction: TextInputAction.done,
                   decoration: InputDecoration(
-                    labelText: _labels[i],
+                    labelText: _labels[i].tr(),
                     suffixText: 'px',
                     isDense: true,
                     border: const OutlineInputBorder(),
@@ -610,10 +622,19 @@ class _ThemeModePicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SegmentedButton<ThemeMode>(
-      segments: const [
-        ButtonSegment(value: ThemeMode.system, label: Text('System')),
-        ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-        ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+      segments: [
+        ButtonSegment(
+          value: ThemeMode.system,
+          label: Text('settingsThemeModeSystem'.tr()),
+        ),
+        ButtonSegment(
+          value: ThemeMode.light,
+          label: Text('settingsThemeModeLight'.tr()),
+        ),
+        ButtonSegment(
+          value: ThemeMode.dark,
+          label: Text('settingsThemeModeDark'.tr()),
+        ),
       ],
       selected: {settings.themeMode},
       onSelectionChanged: (selection) => ref
@@ -623,7 +644,9 @@ class _ThemeModePicker extends ConsumerWidget {
   }
 }
 
-class _SeedColorPicker extends ConsumerWidget {
+/// Accent color picker: preset swatches plus manual hex entry and a full
+/// color editor, modeled after MaidKit's settings page.
+class _SeedColorPicker extends ConsumerStatefulWidget {
   const _SeedColorPicker({required this.settings});
 
   final TerminalSettings settings;
@@ -640,16 +663,71 @@ class _SeedColorPicker extends ConsumerWidget {
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SeedColorPicker> createState() => _SeedColorPickerState();
+}
+
+class _SeedColorPickerState extends ConsumerState<_SeedColorPicker> {
+  late final TextEditingController _hexController;
+  String? _hexError;
+
+  @override
+  void initState() {
+    super.initState();
+    _hexController = TextEditingController(
+      text: _hexFor(widget.settings.seedColor),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_SeedColorPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.settings.seedColor != widget.settings.seedColor) {
+      _hexController.text = _hexFor(widget.settings.seedColor);
+    }
+  }
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  void _applyHex(String value) {
+    final color = _colorFromHex(value);
+    if (color == null) {
+      setState(
+        () => _hexError = 'settingsHexError'.tr(),
+      );
+      return;
+    }
+    setState(() => _hexError = null);
+    ref.read(terminalSettingsProvider.notifier).setSeedColor(color);
+  }
+
+  Future<void> _editColor() async {
+    final updated = await showDialog<Color>(
+      context: context,
+      builder: (context) => _ColorEditDialog(
+        title: 'settingsColorDialogTitle'.tr(),
+        initialColor: widget.settings.seedColor,
+      ),
+    );
+    if (updated != null) {
+      ref.read(terminalSettingsProvider.notifier).setSeedColor(updated);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Accent color'),
+        Text('settingsAccentColor'.tr()),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           children: [
-            for (final color in _presets)
+            for (final color in _SeedColorPicker._presets)
               InkWell(
                 onTap: () => ref
                     .read(terminalSettingsProvider.notifier)
@@ -662,19 +740,243 @@ class _SeedColorPicker extends ConsumerWidget {
                     color: color,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: settings.seedColor == color
+                      color: widget.settings.seedColor == color
                           ? Theme.of(context).colorScheme.primary
                           : Theme.of(context).colorScheme.outlineVariant,
-                      width: settings.seedColor == color ? 3 : 1,
+                      width: widget.settings.seedColor == color ? 3 : 1,
                     ),
                   ),
                 ),
               ),
           ],
         ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: widget.settings.seedColor,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                key: const ValueKey('accent-color-hex'),
+                controller: _hexController,
+                maxLength: 7,
+                onSubmitted: _applyHex,
+                decoration: InputDecoration(
+                  labelText: 'settingsThemeColor'.tr(),
+                  hintText: '#0F766E',
+                  errorText: _hexError,
+                  counterText: '',
+                  isDense: true,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(
+              key: const ValueKey('accent-color-edit'),
+              tooltip: 'settingsEditTheme'.tr(),
+              onPressed: _editColor,
+              icon: const Icon(Symbols.edit),
+            ),
+          ],
+        ),
       ],
     );
   }
+}
+
+/// Hex + RGB channel editor for a single color, modeled after MaidKit's
+/// color dialog.
+class _ColorEditDialog extends StatefulWidget {
+  const _ColorEditDialog({required this.title, required this.initialColor});
+
+  final String title;
+  final Color initialColor;
+
+  @override
+  State<_ColorEditDialog> createState() => _ColorEditDialogState();
+}
+
+class _ColorEditDialogState extends State<_ColorEditDialog> {
+  late final TextEditingController _hexController;
+  late int _red;
+  late int _green;
+  late int _blue;
+  String? _colorError;
+
+  @override
+  void initState() {
+    super.initState();
+    final color = widget.initialColor;
+    _red = color.r.toInt();
+    _green = color.g.toInt();
+    _blue = color.b.toInt();
+    _hexController = TextEditingController(text: _hexFor(_color));
+  }
+
+  Color get _color => Color.fromARGB(255, _red, _green, _blue);
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  void _updateFromHex(String value) {
+    final color = _colorFromHex(value);
+    setState(() {
+      _colorError = color == null
+          ? 'settingsHexError'.tr()
+          : null;
+      if (color != null) {
+        _red = color.r.toInt();
+        _green = color.g.toInt();
+        _blue = color.b.toInt();
+      }
+    });
+  }
+
+  void _updateColor(void Function() update) {
+    setState(() {
+      update();
+      _colorError = null;
+      _hexController.text = _hexFor(_color);
+    });
+  }
+
+  void _save() {
+    final color = _colorFromHex(_hexController.text);
+    if (color == null) {
+      setState(
+        () => _colorError = 'settingsHexError'.tr(),
+      );
+      return;
+    }
+    Navigator.of(context).pop(color);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _color,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _hexController,
+                      maxLength: 7,
+                      onChanged: _updateFromHex,
+                      decoration: InputDecoration(
+                        labelText: 'settingsThemeColor'.tr(),
+                        hintText: '#0F766E',
+                        errorText: _colorError,
+                        counterText: '',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'settingsColorDialogHelp'.tr(),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              _ColorChannelSlider(
+                label: 'R',
+                value: _red,
+                onChanged: (value) => _updateColor(() => _red = value),
+              ),
+              _ColorChannelSlider(
+                label: 'G',
+                value: _green,
+                onChanged: (value) => _updateColor(() => _green = value),
+              ),
+              _ColorChannelSlider(
+                label: 'B',
+                value: _blue,
+                onChanged: (value) => _updateColor(() => _blue = value),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('commonCancel'.tr()),
+        ),
+        FilledButton(onPressed: _save, child: Text('commonSave'.tr())),
+      ],
+    );
+  }
+}
+
+class _ColorChannelSlider extends StatelessWidget {
+  const _ColorChannelSlider({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(width: 20, child: Text(label)),
+        Expanded(
+          child: Slider(
+            value: value.toDouble(),
+            min: 0,
+            max: 255,
+            divisions: 255,
+            label: '$value',
+            onChanged: (value) => onChanged(value.round()),
+          ),
+        ),
+        SizedBox(width: 28, child: Text('$value')),
+      ],
+    );
+  }
+}
+
+String _hexFor(Color color) =>
+    '#${color.r.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}${color.g.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}${color.b.toInt().toRadixString(16).padLeft(2, '0').toUpperCase()}';
+
+Color? _colorFromHex(String value) {
+  final hex = value.trim().replaceFirst('#', '');
+  if (!RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(hex)) return null;
+  return Color(int.parse('FF$hex', radix: 16));
 }
 
 /// System font picker with a monospace filter and a manual entry field for
@@ -706,9 +1008,9 @@ class _TerminalFontDropdown extends ConsumerWidget {
     final familyField = DropdownButtonFormField<String>(
       initialValue: current,
       isExpanded: true,
-      decoration: const InputDecoration(
-        labelText: 'Font family',
-        border: OutlineInputBorder(),
+      decoration: InputDecoration(
+        labelText: 'settingsFontFamily'.tr(),
+        border: const OutlineInputBorder(),
       ),
       items: [
         for (final option in filtered)
@@ -752,18 +1054,18 @@ class _TerminalFontDropdown extends ConsumerWidget {
         const SizedBox(height: 16),
         TextField(
           controller: TextEditingController(text: current),
-          decoration: const InputDecoration(
-            labelText: 'Custom family',
-            hintText: 'e.g. Fira Code',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: 'settingsFontCustomFamily'.tr(),
+            hintText: 'settingsFontCustomFamilyHint'.tr(),
+            border: const OutlineInputBorder(),
           ),
           onSubmitted: setFontFamily,
         ),
         const SizedBox(height: 4),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Monospace only'),
-          subtitle: const Text('Keep the font list focused on terminal faces'),
+          title: Text('settingsFontMonospaceOnly'.tr()),
+          subtitle: Text('settingsFontMonospaceOnlyDescription'.tr()),
           value: monoOnly,
           onChanged: (value) => ref
               .read(monospaceTerminalFontsOnlyProvider.notifier)
@@ -791,9 +1093,9 @@ class _FontSizeField extends ConsumerWidget {
       controller: TextEditingController(text: size.toStringAsFixed(0)),
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      decoration: const InputDecoration(
-        labelText: 'Font size (pt)',
-        border: OutlineInputBorder(),
+      decoration: InputDecoration(
+        labelText: 'settingsFontSize'.tr(),
+        border: const OutlineInputBorder(),
       ),
       onSubmitted: (value) {
         final parsed = double.tryParse(value);
@@ -821,8 +1123,12 @@ class _TerminalThemeTile extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: TerminalPalettePreview(theme: theme),
-      title: Text(mode == Brightness.light ? 'Light theme' : 'Dark theme'),
-      subtitle: Text('${theme.label} · tap to edit'),
+      title: Text(
+        mode == Brightness.light
+            ? 'settingsThemeLight'.tr()
+            : 'settingsThemeDark'.tr(),
+      ),
+      subtitle: Text('settingsThemeEditHint'.tr(args: [theme.label])),
       trailing: const Icon(Symbols.edit),
       onTap: onEdit,
     );

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:island_ui_foundation/island_ui_foundation.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
@@ -97,7 +98,7 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
-      title: 'MaidTerm',
+      title: 'title'.tr(),
       debugShowCheckedModeBanner: false,
       theme: createMaidTermTheme(Brightness.light, seedColor: seedColor),
       darkTheme: createMaidTermTheme(Brightness.dark, seedColor: seedColor),
@@ -195,7 +196,7 @@ class _FramePage extends ConsumerWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: settingsOpen,
       builder: (context, settingsOpen, _) => MaidTermWindowScaffold(
-        title: settingsOpen ? 'Settings' : 'MaidTerm',
+        title: settingsOpen ? 'settingsTitle'.tr() : 'title'.tr(),
         menuButton: showMenu
             ? _TitleBarMenuButton(
                 onNewTab: onNewTab,
@@ -266,7 +267,7 @@ class _TitleBarMenuButton extends StatelessWidget {
     }
 
     return PopupMenuButton<_TitleBarMenuAction>(
-      tooltip: 'Menu',
+      tooltip: 'menuTooltip'.tr(),
       icon: const Icon(Symbols.menu, size: 18),
       position: PopupMenuPosition.under,
       onSelected: (action) {
@@ -288,39 +289,39 @@ class _TitleBarMenuButton extends StatelessWidget {
       itemBuilder: (context) => [
         item(
           _TitleBarMenuAction.newTab,
-          'New Tab',
+          'menuNewTab'.tr(),
           Symbols.add,
           _macOS ? '⌘T' : null,
         ),
         item(
           _TitleBarMenuAction.splitRight,
-          'Split Pane Right',
+          'menuSplitRight'.tr(),
           Symbols.vertical_split,
           _macOS ? '⌘D' : null,
         ),
         item(
           _TitleBarMenuAction.splitBelow,
-          'Split Pane Below',
+          'menuSplitBelow'.tr(),
           Symbols.horizontal_split,
           _macOS ? '⌘⇧D' : null,
         ),
         const PopupMenuDivider(),
         item(
           _TitleBarMenuAction.closePane,
-          'Close Pane',
+          'menuClosePane'.tr(),
           Symbols.splitscreen,
           _macOS ? '⌘W' : null,
         ),
         item(
           _TitleBarMenuAction.closeTab,
-          'Close Tab',
+          'menuCloseTab'.tr(),
           Symbols.close,
           _macOS ? '⌘⇧W' : null,
         ),
         const PopupMenuDivider(),
         item(
           _TitleBarMenuAction.settings,
-          'Settings…',
+          'menuSettings'.tr(),
           Symbols.settings,
           _macOS ? '⌘,' : null,
         ),

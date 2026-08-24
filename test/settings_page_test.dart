@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -14,6 +15,29 @@ import 'package:maidterm_app/settings/terminal_fonts.dart';
 import 'package:maidterm_app/settings/terminal_settings.dart';
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    await EasyLocalization.ensureInitialized();
+    EasyLocalization.logger.enableBuildModes = [];
+  });
+
+  Widget buildSettings(Widget child) => EasyLocalization(
+    supportedLocales: const [Locale('en', 'US')],
+    path: 'assets/translations',
+    fallbackLocale: const Locale('en', 'US'),
+    useFallbackTranslations: true,
+    child: ProviderScope(
+      child: MaterialApp(
+        localizationsDelegates: [
+          ...material_ui.GlobalMaterialLocalizations.delegates,
+          GlobalMaterialLocalizations.delegate,
+        ],
+        home: child,
+      ),
+    ),
+  );
+
   testWidgets('settings page renders current values and persists changes', (
     tester,
   ) async {
@@ -25,22 +49,14 @@ void main() {
     });
 
     await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          localizationsDelegates: [
-            ...material_ui.GlobalMaterialLocalizations.delegates,
-            GlobalMaterialLocalizations.delegate,
-          ],
-          home: const SettingsPage(),
-        ),
-      ),
+      buildSettings(const SettingsPage()),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Background image'), findsOneWidget);
-    expect(find.text('Choose image'), findsOneWidget);
-    expect(find.text('No image selected.'), findsOneWidget);
+    expect(find.text('settingsTitle'.tr()), findsOneWidget);
+    expect(find.text('settingsBackgroundImage'.tr()), findsOneWidget);
+    expect(find.text('settingsBackgroundChoose'.tr()), findsOneWidget);
+    expect(find.text('settingsBackgroundNoImage'.tr()), findsOneWidget);
 
     // Values loaded from prefs.
     final container = ProviderScope.containerOf(
@@ -51,12 +67,12 @@ void main() {
 
     // Toggle blink persists.
     await tester.scrollUntilVisible(
-      find.text('Cursor blink'),
+      find.text('settingsCursorBlink'.tr()),
       200,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cursor blink'));
+    await tester.tap(find.text('settingsCursorBlink'.tr()));
     await tester.pumpAndSettle();
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('terminal.cursorBlink'), isTrue);
@@ -65,26 +81,16 @@ void main() {
   testWidgets('tab bar position control persists selection', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          localizationsDelegates: [
-            ...material_ui.GlobalMaterialLocalizations.delegates,
-            GlobalMaterialLocalizations.delegate,
-          ],
-          home: const SettingsPage(),
-        ),
-      ),
-    );
+    await tester.pumpWidget(buildSettings(const SettingsPage()));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Tab bar'),
+      find.text('settingsTabBar'.tr()),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Left').first);
+    await tester.tap(find.text('settingsTabBarLeft'.tr()).first);
     await tester.pumpAndSettle();
 
     final settings = ProviderScope.containerOf(
@@ -102,30 +108,20 @@ void main() {
   testWidgets('edits and persists both pane margin modes', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          localizationsDelegates: [
-            ...material_ui.GlobalMaterialLocalizations.delegates,
-            GlobalMaterialLocalizations.delegate,
-          ],
-          home: const SettingsPage(),
-        ),
-      ),
-    );
+    await tester.pumpWidget(buildSettings(const SettingsPage()));
     await tester.pumpAndSettle();
 
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
-      find.text('Pane margins'),
+      find.text('settingsPaneMargins'.tr()),
       300,
       scrollable: scrollable,
     );
     await tester.pumpAndSettle();
 
-    final normalLeft = find.byKey(const ValueKey('Normal mode:margin-0'));
+    final normalLeft = find.byKey(ValueKey('${'settingsPaneNormalMode'.tr()}:margin-0'));
     final fullScreenTop = find.byKey(
-      const ValueKey('Full-screen mode:margin-1'),
+      ValueKey('${'settingsPaneFullScreenMode'.tr()}:margin-1'),
     );
     await tester.enterText(normalLeft, '12');
     await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -147,41 +143,118 @@ void main() {
       contains('"top":3.5'),
     );
   });
+
   testWidgets('about entry opens the about page', (tester) async {
     SharedPreferences.setMockInitialValues({});
 
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          packageInfoProvider.overrideWith(
-            (ref) async => PackageInfo(
-              appName: 'MaidTerm',
-              packageName: 'com.solsynth.maidterm',
-              version: '0.1.0',
-              buildNumber: '1',
+      EasyLocalization(
+        supportedLocales: const [Locale('en', 'US')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en', 'US'),
+        useFallbackTranslations: true,
+        child: ProviderScope(
+          overrides: [
+            packageInfoProvider.overrideWith(
+              (ref) async => PackageInfo(
+                appName: 'MaidTerm',
+                packageName: 'com.solsynth.maidterm',
+                version: '0.1.0',
+                buildNumber: '1',
+              ),
             ),
-          ),
-        ],
-        child: MaterialApp(
-          localizationsDelegates: [
-            ...material_ui.GlobalMaterialLocalizations.delegates,
-            GlobalMaterialLocalizations.delegate,
           ],
-          home: const SettingsPage(),
+          child: MaterialApp(
+            localizationsDelegates: [
+              ...material_ui.GlobalMaterialLocalizations.delegates,
+              GlobalMaterialLocalizations.delegate,
+            ],
+            home: const SettingsPage(),
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('About MaidTerm'),
+      find.text('settingsAboutTile'.tr()),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('About MaidTerm'));
+    await tester.tap(find.text('settingsAboutTile'.tr()));
     await tester.pumpAndSettle();
 
     expect(find.byType(AboutPage), findsOneWidget);
+  });
+
+  testWidgets('accent color accepts manual hex input and persists', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(buildSettings(const SettingsPage()));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsPage)),
+    );
+    final hexField = find.byKey(const ValueKey('accent-color-hex'));
+
+    // Invalid hex shows an error and leaves the color unchanged.
+    await tester.enterText(hexField, '#ZZZZZZ');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.text('settingsHexError'.tr()), findsOneWidget);
+    expect(
+      container.read(terminalSettingsProvider).value?.seedColor,
+      const Color(0xFF0F766E),
+    );
+
+    // Valid hex applies and persists to preferences.
+    await tester.enterText(hexField, '#6750A4');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.text('settingsHexError'.tr()), findsNothing);
+    expect(
+      container.read(terminalSettingsProvider).value?.seedColor,
+      const Color(0xFF6750A4),
+    );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt('app.seedColor'), 0xFF6750A4);
+  });
+
+  testWidgets('accent color editor dialog applies a custom color', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(buildSettings(const SettingsPage()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('accent-color-edit')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('settingsColorDialogHelp'.tr()),
+      findsOneWidget,
+    );
+
+    final dialogHexField = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(dialogHexField, '#B3261E');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('commonSave'.tr()));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsPage)),
+    );
+    expect(
+      container.read(terminalSettingsProvider).value?.seedColor,
+      const Color(0xFFB3261E),
+    );
+    expect(find.byType(AlertDialog), findsNothing);
   });
 }

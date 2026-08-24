@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'terminal_color_scheme.dart';
 
@@ -127,7 +128,7 @@ class _TerminalThemeDialogState extends State<_TerminalThemeDialog> {
         apply(updated);
         // Edited variants become custom schemes so presets stay intact.
         if (_scheme.id != 'custom') {
-          _scheme = _scheme.copyWith(id: 'custom', label: 'Custom');
+          _scheme = _scheme.copyWith(id: 'custom', label: 'commonCustom'.tr());
         }
         _edited = true;
       });
@@ -143,8 +144,8 @@ class _TerminalThemeDialogState extends State<_TerminalThemeDialog> {
   @override
   Widget build(BuildContext context) {
     final title = widget.brightness == Brightness.light
-        ? 'Light theme'
-        : 'Dark theme';
+        ? 'themeEditorLightTheme'.tr()
+        : 'themeEditorDarkTheme'.tr();
     final isCustom = !TerminalColorSchemes.all.any(
       (scheme) => scheme.id == _scheme.id,
     );
@@ -160,14 +161,17 @@ class _TerminalThemeDialogState extends State<_TerminalThemeDialog> {
             children: [
               DropdownButtonFormField<String>(
                 initialValue: isCustom ? 'custom' : _scheme.id,
-                decoration: const InputDecoration(labelText: 'Preset'),
+                decoration: InputDecoration(labelText: 'themeEditorPreset'.tr()),
                 items: [
                   for (final scheme in TerminalColorSchemes.all)
                     DropdownMenuItem(
                       value: scheme.id,
                       child: Text(scheme.label),
                     ),
-                  const DropdownMenuItem(value: 'custom', child: Text('Custom')),
+                  DropdownMenuItem(
+                    value: 'custom',
+                    child: Text('commonCustom'.tr()),
+                  ),
                 ],
                 onChanged: (id) {
                   if (id == null || id == 'custom') return;
@@ -180,61 +184,71 @@ class _TerminalThemeDialogState extends State<_TerminalThemeDialog> {
               ),
               const SizedBox(height: 16),
               _TerminalColorRow(
-                label: 'Background',
+                label: 'themeEditorBackground'.tr(),
                 color: _scheme.background,
                 onTap: () => _editColor(
-                  'Background',
+                  'themeEditorBackground'.tr(),
                   _scheme.background,
                   (color) => _scheme = _scheme.copyWith(background: color),
                 ),
               ),
               _TerminalColorRow(
-                label: 'Foreground',
+                label: 'themeEditorForeground'.tr(),
                 color: _scheme.foreground,
                 onTap: () => _editColor(
-                  'Foreground',
+                  'themeEditorForeground'.tr(),
                   _scheme.foreground,
                   (color) => _scheme = _scheme.copyWith(foreground: color),
                 ),
               ),
               _TerminalColorRow(
-                label: 'Cursor',
+                label: 'themeEditorCursor'.tr(),
                 color: _scheme.cursor,
                 onTap: () => _editColor(
-                  'Cursor',
+                  'themeEditorCursor'.tr(),
                   _scheme.cursor,
                   (color) => _scheme = _scheme.copyWith(cursor: color),
                 ),
               ),
               _TerminalColorRow(
-                label: 'Selection',
+                label: 'themeEditorSelection'.tr(),
                 color: _scheme.selection,
                 onTap: () => _editColor(
-                  'Selection',
+                  'themeEditorSelection'.tr(),
                   _scheme.selection,
                   (color) => _scheme = _scheme.copyWith(selection: color),
                 ),
               ),
               const SizedBox(height: 8),
-              Text('Normal colors', style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                'themeEditorNormalColors'.tr(),
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
               for (var i = 0; i < 8; i++)
                 _TerminalColorRow(
-                  label: _ansiBaseLabels[i],
+                  label: _ansiBaseLabels[i].tr(),
                   color: _scheme.ansiColors[i],
                   onTap: () => _editColor(
-                    _ansiBaseLabels[i],
+                    _ansiBaseLabels[i].tr(),
                     _scheme.ansiColors[i],
                     (color) => setState(() => _setAnsi(i, color)),
                   ),
                 ),
               const SizedBox(height: 8),
-              Text('Bright colors', style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                'themeEditorBrightColors'.tr(),
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
               for (var i = 0; i < 8; i++)
                 _TerminalColorRow(
-                  label: 'Bright ${_ansiBaseLabels[i]}',
+                  label: 'themeEditorBrightColor'.tr(
+                    args: [_ansiBaseLabels[i].tr()],
+                  ),
                   color: _scheme.ansiColors[i + 8],
                   onTap: () => _editColor(
-                    'Bright ${_ansiBaseLabels[i]}',
+                    'themeEditorBrightColor'.tr(
+                      args: [_ansiBaseLabels[i].tr()],
+                    ),
                     _scheme.ansiColors[i + 8],
                     (color) => setState(() => _setAnsi(i + 8, color)),
                   ),
@@ -246,11 +260,11 @@ class _TerminalThemeDialogState extends State<_TerminalThemeDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text('commonCancel'.tr()),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_scheme),
-          child: Text(_edited ? 'Save' : 'Done'),
+          child: Text(_edited ? 'commonSave'.tr() : 'themeEditorDone'.tr()),
         ),
       ],
     );
@@ -332,7 +346,7 @@ class _ColorEditDialogState extends State<_ColorEditDialog> {
   void _updateFromHex(String value) {
     final color = colorFromHex(value);
     setState(() {
-      _colorError = color == null ? 'Invalid hex color' : null;
+      _colorError = color == null ? 'themeEditorInvalidHex'.tr() : null;
       if (color != null) {
         _red = (color.r * 255).round();
         _green = (color.g * 255).round();
@@ -352,7 +366,7 @@ class _ColorEditDialogState extends State<_ColorEditDialog> {
   void _save() {
     final color = colorFromHex(_hexController.text);
     if (color == null) {
-      setState(() => _colorError = 'Invalid hex color');
+      setState(() => _colorError = 'themeEditorInvalidHex'.tr());
       return;
     }
     Navigator.of(context).pop(color);
@@ -386,7 +400,7 @@ class _ColorEditDialogState extends State<_ColorEditDialog> {
                       maxLength: 7,
                       onChanged: _updateFromHex,
                       decoration: InputDecoration(
-                        labelText: 'Color',
+                        labelText: 'themeEditorColor'.tr(),
                         hintText: '#0F766E',
                         errorText: _colorError,
                         counterText: '',
@@ -428,9 +442,9 @@ class _ColorEditDialogState extends State<_ColorEditDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text('commonCancel'.tr()),
         ),
-        FilledButton(onPressed: _save, child: const Text('Save')),
+        FilledButton(onPressed: _save, child: Text('commonSave'.tr())),
       ],
     );
   }

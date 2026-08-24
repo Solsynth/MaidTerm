@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,17 +14,30 @@ import 'package:maidterm_app/workspace/terminal_workspace_page.dart';
 import 'package:maidterm_app/settings/settings_page.dart';
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    await EasyLocalization.ensureInitialized();
+    EasyLocalization.logger.enableBuildModes = [];
+  });
+
   Widget app() {
-    return ProviderScope(
-      overrides: [
-        localShellSessionFactoryProvider.overrideWithValue(
-          ({String? workingDirectory}) => LocalShellSession(
-            workingDirectory: workingDirectory,
-            autoStart: false,
+    return EasyLocalization(
+      supportedLocales: const [Locale('en', 'US')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en', 'US'),
+      useFallbackTranslations: true,
+      child: ProviderScope(
+        overrides: [
+          localShellSessionFactoryProvider.overrideWithValue(
+            ({String? workingDirectory}) => LocalShellSession(
+              workingDirectory: workingDirectory,
+              autoStart: false,
+            ),
           ),
-        ),
-      ],
-      child: const MaidTermApp(),
+        ],
+        child: const MaidTermApp(),
+      ),
     );
   }
 
@@ -45,6 +59,7 @@ void main() {
   testWidgets('terminal shortcuts manage tabs and panes', (tester) async {
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
+    expect(find.byType(TerminalWorkspacePage), findsOneWidget);
 
     Future<void> press(LogicalKeyboardKey key, {bool shift = false}) async {
       await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
@@ -95,9 +110,9 @@ void main() {
     // Let the popup entrance animation complete before settling.
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
-    expect(find.text('New Tab'), findsOneWidget);
+    expect(find.text('menuNewTab'.tr()), findsOneWidget);
 
-    await tester.tap(find.text('New Tab'));
+    await tester.tap(find.text('menuNewTab'.tr()));
     await tester.pumpAndSettle();
 
     final container = ProviderScope.containerOf(

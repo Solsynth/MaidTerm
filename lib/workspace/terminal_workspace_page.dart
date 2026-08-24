@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -83,7 +84,7 @@ class _EmptyWorkspace extends ConsumerWidget {
           onPressed: () =>
               ref.read(terminalWorkspaceProvider.notifier).openTerminal(),
           icon: const Icon(Symbols.add),
-          label: const Text('New Terminal'),
+          label: Text('workspaceNewTerminal'.tr()),
         ),
       ),
     );
@@ -921,7 +922,7 @@ class _PaneTabContent extends StatelessWidget {
             if (!compact) ...[
               const SizedBox(width: 2),
               IconButton(
-                tooltip: 'Close tab',
+                tooltip: 'workspaceCloseTab'.tr(),
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 constraints: BoxConstraints(

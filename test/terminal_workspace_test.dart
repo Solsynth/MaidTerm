@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,19 +17,32 @@ import 'package:maidterm_app/settings/background_image.dart';
 import 'package:maidterm_app/workspace/terminal_workspace_page.dart';
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    await EasyLocalization.ensureInitialized();
+    EasyLocalization.logger.enableBuildModes = [];
+  });
+
   /// ProviderScope with sessions that never spawn a pty (plugin frameworks
   /// are not linked under `flutter test`).
   Widget buildWorkspace() {
-    return ProviderScope(
-      overrides: [
-        localShellSessionFactoryProvider.overrideWithValue(
-          ({String? workingDirectory}) => LocalShellSession(
-            workingDirectory: workingDirectory,
-            autoStart: false,
+    return EasyLocalization(
+      supportedLocales: const [Locale('en', 'US')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en', 'US'),
+      useFallbackTranslations: true,
+      child: ProviderScope(
+        overrides: [
+          localShellSessionFactoryProvider.overrideWithValue(
+            ({String? workingDirectory}) => LocalShellSession(
+              workingDirectory: workingDirectory,
+              autoStart: false,
+            ),
           ),
-        ),
-      ],
-      child: const MaterialApp(home: TerminalWorkspacePage()),
+        ],
+        child: const MaterialApp(home: TerminalWorkspacePage()),
+      ),
     );
   }
 
@@ -198,7 +212,7 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('workspace-tab-bar'))).height,
       40,
     );
-    expect(find.byTooltip('Close tab'), findsWidgets);
+    expect(find.byTooltip('workspaceCloseTab'.tr()), findsWidgets);
     expect(find.byTooltip('Collapse tab bar'), findsNothing);
   });
 
@@ -219,7 +233,7 @@ void main() {
     );
     expect(tester.getSize(tabBar), const Size(240, 640));
     // Non-compact: chips render titles with close buttons.
-    expect(find.byTooltip('Close tab'), findsWidgets);
+    expect(find.byTooltip('workspaceCloseTab'.tr()), findsWidgets);
 
     await tester.drag(
       find.byKey(const ValueKey('tab-bar-resize-handle')),
@@ -230,7 +244,7 @@ void main() {
 
     expect(tester.getSize(tabBar), const Size(48, 640));
     // Compact: chips collapse to icon-only, close buttons hidden.
-    expect(find.byTooltip('Close tab'), findsNothing);
+    expect(find.byTooltip('workspaceCloseTab'.tr()), findsNothing);
     container.read(terminalWorkspaceProvider.notifier).openTerminal();
     await tester.pumpAndSettle();
 
@@ -251,7 +265,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.getSize(tabBar).width, greaterThan(48));
-    expect(find.byTooltip('Close tab'), findsWidgets);
+    expect(find.byTooltip('workspaceCloseTab'.tr()), findsWidgets);
   });
 
   testWidgets('resizes the vertical tab bar sidebar', (tester) async {
@@ -478,19 +492,25 @@ void main() {
   ) async {
     final workingDirectories = <String?>[];
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          localShellSessionFactoryProvider.overrideWithValue(({
-            String? workingDirectory,
-          }) {
-            workingDirectories.add(workingDirectory);
-            return LocalShellSession(
-              workingDirectory: workingDirectory ?? '/tmp/project',
-              autoStart: false,
-            );
-          }),
-        ],
-        child: const MaterialApp(home: TerminalWorkspacePage()),
+      EasyLocalization(
+        supportedLocales: const [Locale('en', 'US')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en', 'US'),
+        useFallbackTranslations: true,
+        child: ProviderScope(
+          overrides: [
+            localShellSessionFactoryProvider.overrideWithValue(({
+              String? workingDirectory,
+            }) {
+              workingDirectories.add(workingDirectory);
+              return LocalShellSession(
+                workingDirectory: workingDirectory ?? '/tmp/project',
+                autoStart: false,
+              );
+            }),
+          ],
+          child: const MaterialApp(home: TerminalWorkspacePage()),
+        ),
       ),
     );
     await tester.pump();
@@ -561,7 +581,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(maidterm.TerminalView), findsNothing);
-    expect(find.text('New Terminal'), findsOneWidget);
+    expect(find.text('workspaceNewTerminal'.tr()), findsOneWidget);
   });
 
   // 1x1 transparent PNG: a real decodable file for the image provider.
@@ -575,17 +595,23 @@ void main() {
   ];
 
   Widget buildWorkspaceWithImage(File imageFile) {
-    return ProviderScope(
-      overrides: [
-        localShellSessionFactoryProvider.overrideWithValue(
-          ({String? workingDirectory}) => LocalShellSession(
-            workingDirectory: workingDirectory,
-            autoStart: false,
+    return EasyLocalization(
+      supportedLocales: const [Locale('en', 'US')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en', 'US'),
+      useFallbackTranslations: true,
+      child: ProviderScope(
+        overrides: [
+          localShellSessionFactoryProvider.overrideWithValue(
+            ({String? workingDirectory}) => LocalShellSession(
+              workingDirectory: workingDirectory,
+              autoStart: false,
+            ),
           ),
-        ),
-        maidTermBackgroundImageProvider.overrideWith((ref) async => imageFile),
-      ],
-      child: const MaterialApp(home: TerminalWorkspacePage()),
+          maidTermBackgroundImageProvider.overrideWith((ref) async => imageFile),
+        ],
+        child: const MaterialApp(home: TerminalWorkspacePage()),
+      ),
     );
   }
 
@@ -720,19 +746,25 @@ void main() {
   });
 
   Widget buildWorkspaceWithRunningPrograms() {
-    return ProviderScope(
-      overrides: [
-        localShellSessionFactoryProvider.overrideWithValue(
-          ({String? workingDirectory}) => LocalShellSession(
-            workingDirectory: workingDirectory,
-            autoStart: false,
-            runningPrograms: () => true,
+    return EasyLocalization(
+      supportedLocales: const [Locale('en', 'US')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en', 'US'),
+      useFallbackTranslations: true,
+      child: ProviderScope(
+        overrides: [
+          localShellSessionFactoryProvider.overrideWithValue(
+            ({String? workingDirectory}) => LocalShellSession(
+              workingDirectory: workingDirectory,
+              autoStart: false,
+              runningPrograms: () => true,
+            ),
           ),
+        ],
+        child: MaterialApp(
+          navigatorKey: _confirmNavigatorKey,
+          home: const TerminalWorkspacePage(),
         ),
-      ],
-      child: MaterialApp(
-        navigatorKey: _confirmNavigatorKey,
-        home: const TerminalWorkspacePage(),
       ),
     );
   }
@@ -762,18 +794,18 @@ void main() {
     await tester.pumpAndSettle();
 
     // The island_ui_foundation attention modal asks before closing.
-    expect(find.text('Close pane?'), findsOneWidget);
+    expect(find.text('closeConfirmTitleSingle'.tr()), findsOneWidget);
 
     // Cancelling keeps the pane.
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.text('commonCancel'.tr()));
     await tester.pumpAndSettle();
     expect(container.read(terminalWorkspaceProvider).panes, hasLength(2));
 
     // Confirming closes it.
     container.read(terminalWorkspaceProvider.notifier).closePane(secondPaneId);
     await tester.pumpAndSettle();
-    expect(find.text('Close pane?'), findsOneWidget);
-    await tester.tap(find.text('Close'));
+    expect(find.text('closeConfirmTitleSingle'.tr()), findsOneWidget);
+    await tester.tap(find.text('commonClose'.tr()));
     await tester.pumpAndSettle();
     expect(container.read(terminalWorkspaceProvider).panes, hasLength(1));
   });
@@ -798,8 +830,8 @@ void main() {
         .closeTab(container.read(terminalWorkspaceProvider).selectedTabId!);
     await tester.pumpAndSettle();
 
-    expect(find.text('Close panes?'), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
+    expect(find.text('closeConfirmTitleMany'.tr()), findsOneWidget);
+    await tester.tap(find.text('commonCancel'.tr()));
     await tester.pumpAndSettle();
     expect(container.read(terminalWorkspaceProvider).tabs, hasLength(1));
     expect(container.read(terminalWorkspaceProvider).panes, hasLength(2));
@@ -808,7 +840,7 @@ void main() {
         .read(terminalWorkspaceProvider.notifier)
         .closeTab(container.read(terminalWorkspaceProvider).selectedTabId!);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Close'));
+    await tester.tap(find.text('commonClose'.tr()));
     await tester.pumpAndSettle();
     expect(container.read(terminalWorkspaceProvider).tabs, isEmpty);
   });

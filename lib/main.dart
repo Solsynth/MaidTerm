@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:island_ui_foundation/island_ui_foundation.dart';
@@ -8,6 +9,8 @@ import 'package:maidterm_app/notifications/app_notifications.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await EasyLocalization.ensureInitialized();
+  EasyLocalization.logger.enableBuildModes = [];
   await AppNotifications.initialize();
 
   if (DesktopWindowFrame.isPlatformDesktop) {
@@ -25,5 +28,19 @@ Future<void> main() async {
     });
   }
 
-  runApp(const ProviderScope(child: MaidTermApp()));
+  runApp(
+    ProviderScope(
+      child: EasyLocalization(
+        supportedLocales: const [
+          Locale('en', 'US'),
+          Locale('zh', 'CN'),
+          Locale('zh', 'TW'),
+        ],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en', 'US'),
+        useFallbackTranslations: true,
+        child: const MaidTermApp(),
+      ),
+    ),
+  );
 }

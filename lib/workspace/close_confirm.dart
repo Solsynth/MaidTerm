@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:island_ui_foundation/island_ui_foundation.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../shell/local_shell_session.dart';
 
@@ -63,25 +64,26 @@ class _CloseRunningSessionsDialog extends StatelessWidget {
 
     final message = single
         ? programText == null
-              ? 'A program is still running in this pane. '
-                    'Closing it will terminate it.'
-              : 'A program is still running in this pane ($programText). '
-                    'Closing it will terminate it.'
-        : 'Programs are still running in ${sessions.length} panes. '
-              'Closing them will terminate them.';
+              ? 'closeConfirmSingle'.tr()
+              : 'closeConfirmSingleWithProgram'.tr(
+                    args: [programText],
+                  )
+        : 'closeConfirmMany'.tr(
+                args: ['${sessions.length}'],
+              );
 
     return AlertDialog(
-      title: Text(single ? 'Close pane?' : 'Close panes?'),
+      title: Text(single ? 'closeConfirmTitleSingle'.tr() : 'closeConfirmTitleMany'.tr()),
       content: Text(message),
       actions: [
-        TextButton(onPressed: onCancel, child: const Text('Cancel')),
+        TextButton(onPressed: onCancel, child: Text('commonCancel'.tr())),
         FilledButton(
           style: FilledButton.styleFrom(
             backgroundColor: scheme.error,
             foregroundColor: scheme.onError,
           ),
           onPressed: onClose,
-          child: const Text('Close'),
+          child: Text('commonClose'.tr()),
         ),
       ],
     );
