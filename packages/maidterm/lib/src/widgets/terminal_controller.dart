@@ -36,7 +36,7 @@ abstract class TerminalController extends ChangeNotifier
   VoidCallback? onBell;
 
   /// Called when the terminal receives a desktop notification request
-  /// (OSC 9 or OSC 777;notify).
+  /// (OSC 9, OSC 777;notify, or OSC 99).
   ///
   /// [title] is empty for OSC 9 notifications. The callback runs during
   /// [write] and does not display anything by itself.

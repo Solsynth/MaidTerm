@@ -35,7 +35,8 @@ abstract final class AppNotifications {
     required String title,
     required String body,
   }) async {
-    if (!_initialized || body.isEmpty) return;
+    // Title-only notifications (e.g. OSC 99 with no body) are valid.
+    if (!_initialized || (title.isEmpty && body.isEmpty)) return;
 
     await _plugin.show(
       id: _nextId++,

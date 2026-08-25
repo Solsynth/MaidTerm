@@ -30,8 +30,12 @@ final class VtGraphicsRewriter {
   /// Receives OSC 9;4 progress reports.
   void Function(TerminalProgress progress)? onProgress;
 
-  /// Receives OSC 9/777 desktop notification requests.
+  /// Receives OSC 9/777/99 desktop notification requests.
   void Function(String title, String body)? onNotification;
+
+  /// Pending OSC 99 notifications awaiting completion (`d=0` chunks),
+  /// keyed by the `i=` identifier (empty string when unidentified).
+  final _pendingOsc99 = <String, _PendingOsc99>{};
 
   /// Maximum notification payload buffered before passthrough.
   static const int maxNotificationBytes = 8192;
@@ -258,6 +262,8 @@ final class VtGraphicsRewriter {
           body = notification.first;
         }
       }
+    } else if (command == '99') {
+      _handleOsc99(args);
     }
 
     final notificationBody = body;
@@ -265,6 +271,77 @@ final class VtGraphicsRewriter {
       onNotification?.call(title ?? '', notificationBody);
     }
     _out.add(bytes);
+  }
+
+  /// Handles one complete OSC 99 (kitty desktop notification) sequence:
+  /// `OSC 99 ; metadata ; payload ST`. Supports the `i`, `d`, `e`, and
+  /// `p=title|body|close` keys; chunked title/body payloads accumulate in
+  /// [_pendingOsc99] until a chunk with `d=1` completes the notification.
+  /// Icon, button, query (`p=?`/`p=alive`), and response escape codes are
+  /// not supported; unknown keys are ignored per the kitty spec.
+  void _handleOsc99(String args) {
+    final separator = args.indexOf(';');
+    final metadata = separator < 0 ? args : args.substring(0, separator);
+    final payload = separator < 0 ? '' : args.substring(separator + 1);
+
+    String? id;
+    var done = true;
+    var encoded = false;
+    var part = 'title';
+    for (final group in metadata.split(';')) {
+      for (final field in group.split(':')) {
+        if (field.length < 3 || field[1] != '=') continue;
+        switch (field[0]) {
+          case 'i':
+            id = field.substring(2);
+          case 'd':
+            done = field.substring(2) != '0';
+          case 'e':
+            encoded = field.substring(2) == '1';
+          case 'p':
+            part = field.substring(2);
+        }
+      }
+    }
+
+    switch (part) {
+      case 'title' || 'body':
+        break;
+      case 'close':
+        if (id != null) _pendingOsc99.remove(id);
+        return;
+      default:
+        return;
+    }
+
+    final key = id ?? '';
+    final entry = _pendingOsc99.putIfAbsent(key, _PendingOsc99.new);
+    (part == 'title' ? entry.title : entry.body).write(payload);
+    entry.encoded = encoded;
+    if (!done) return;
+    _pendingOsc99.remove(key);
+
+    final total = entry.title.length + entry.body.length;
+    if (total == 0 || total > maxNotificationBytes) return;
+    String decode(String raw) {
+      if (!entry.encoded) return raw;
+      // Interior padding from per-chunk encoding is dropped; the result is
+      // re-padded so both chunking styles decode identically.
+      final compact = raw.replaceAll('=', '');
+      try {
+        return utf8.decode(
+          base64.decode(compact.padRight((compact.length + 3) & ~3, '=')),
+          allowMalformed: true,
+        );
+      } on FormatException {
+        return raw;
+      }
+    }
+
+    onNotification?.call(
+      decode(entry.title.toString()),
+      decode(entry.body.toString()),
+    );
   }
 
   /// Returns the rewritten APC bytes for a complete `ESC _ ... ESC \`
@@ -382,6 +459,15 @@ final class VtGraphicsRewriter {
     }
     return -1;
   }
+}
+
+/// Accumulated payload parts of an in-progress OSC 99 notification.
+final class _PendingOsc99 {
+  final StringBuffer title = StringBuffer();
+  final StringBuffer body = StringBuffer();
+
+  /// Whether the payload chunks are Base64 encoded (`e=1`).
+  var encoded = false;
 }
 
 enum _State {

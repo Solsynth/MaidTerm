@@ -237,5 +237,85 @@ void main() {
       expect(asString(out(r, sequence)), sequence);
       expect(called, isFalse);
     });
+
+    test('reports a simple OSC 99 notification and preserves the sequence', () {
+      final r = rewriter();
+      String? title;
+      String? body;
+      r.onNotification = (nextTitle, nextBody) {
+        title = nextTitle;
+        body = nextBody;
+      };
+      const sequence = '\x1b]99;;Hello world\x1b\\';
+      expect(asString(out(r, sequence)), sequence);
+      expect(title, 'Hello world');
+      expect(body, isEmpty);
+    });
+
+    test('holds chunked OSC 99 notifications until d=1', () {
+      final r = rewriter();
+      var calls = 0;
+      String? title;
+      String? body;
+      r.onNotification = (nextTitle, nextBody) {
+        calls++;
+        title = nextTitle;
+        body = nextBody;
+      };
+      expect(
+        asString(out(r, '\x1b]99;i=1:d=0:p=title;Hello\x07')),
+        '\x1b]99;i=1:d=0:p=title;Hello\x07',
+      );
+      out(r, '\x1b]99;i=1:d=0:p=body;world\x07');
+      expect(
+        asString(out(r, '\x1b]99;i=1:p=body:d=1;!\x1b\\')),
+        '\x1b]99;i=1:p=body:d=1;!\x1b\\',
+      );
+      expect(calls, 1);
+      expect(title, 'Hello');
+      expect(body, 'world!');
+    });
+
+    test('never displays an OSC 99 notification left at d=0', () {
+      final r = rewriter();
+      var called = false;
+      r.onNotification = (_, _) => called = true;
+      const sequence = '\x1b]99;i=1:d=0:p=body;Build finished!\x07';
+      expect(asString(out(r, sequence)), sequence);
+      expect(called, isFalse);
+    });
+
+    test('decodes base64 OSC 99 payloads', () {
+      final r = rewriter();
+      String? title;
+      String? body;
+      r.onNotification = (nextTitle, nextBody) {
+        title = nextTitle;
+        body = nextBody;
+      };
+      out(r, '\x1b]99;i=x:e=1:d=0:p=title;SGk=\x07');
+      out(r, '\x1b]99;i=x:e=1:p=body:d=1;b2s=\x07');
+      expect(title, 'Hi');
+      expect(body, 'ok');
+    });
+
+    test('OSC 99 close drops the pending notification', () {
+      final r = rewriter();
+      var called = false;
+      r.onNotification = (_, _) => called = true;
+      out(r, '\x1b]99;i=1:d=0;p=title;Hi\x07');
+      out(r, '\x1b]99;i=1:p=close\x07');
+      out(r, '\x1b]99;i=1:d=1:p=title\x07');
+      expect(called, isFalse);
+    });
+
+    test('unidentified chunks do not merge with identified ones', () {
+      final r = rewriter();
+      String? body;
+      r.onNotification = (_, nextBody) => body = nextBody;
+      out(r, '\x1b]99;i=1:d=0:p=title;T\x07');
+      out(r, '\x1b]99;;plain\x07');
+      expect(body, isEmpty);
+    });
   });
 }
