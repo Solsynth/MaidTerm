@@ -103,6 +103,40 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
     );
   }
 
+  KeyEventResult _handleFocusedTerminalKeyEvent(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (!keyboard.isMetaPressed ||
+        keyboard.isControlPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+
+    VoidCallback? action;
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.comma when !keyboard.isShiftPressed:
+        action = _openSettings;
+      case LogicalKeyboardKey.keyN when !keyboard.isShiftPressed:
+        action = _openNewWindow;
+      case LogicalKeyboardKey.keyT when !keyboard.isShiftPressed:
+        action = _openTerminal;
+      case LogicalKeyboardKey.keyD:
+        action = keyboard.isShiftPressed
+            ? () => _split(SplitAxis.vertical)
+            : () => _split(SplitAxis.horizontal);
+      case LogicalKeyboardKey.keyW:
+        action = keyboard.isShiftPressed
+            ? _closeSelectedTab
+            : _closeFocusedPane;
+      default:
+        return KeyEventResult.ignored;
+    }
+    if (event is KeyDownEvent) action();
+    return KeyEventResult.handled;
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(terminalSettingsProvider).value;
@@ -202,6 +236,7 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
               _closeSelectedTab(),
         },
         child: TerminalWorkspacePage(
+          onAppKeyEvent: _handleFocusedTerminalKeyEvent,
           onSelectNextTab: _selectNextTab,
           onSelectPaneNumber: _selectPaneNumber,
         ),

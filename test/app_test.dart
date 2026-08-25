@@ -68,6 +68,15 @@ void main() {
   testWidgets('command comma opens settings', (tester) async {
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
+    final session = container
+        .read(terminalWorkspaceProvider)
+        .selectedTab!
+        .session;
+    final emitted = <int>[];
+    session.controller.onOutput = emitted.addAll;
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.comma, character: ',');
@@ -78,6 +87,7 @@ void main() {
     // The frame title also reads "Settings" while the route is open; assert
     // on the page itself.
     expect(find.byType(SettingsPage), findsOneWidget);
+    expect(emitted, isEmpty);
   });
 
   testWidgets('terminal shortcuts manage tabs and panes', (tester) async {
@@ -101,12 +111,26 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(TerminalWorkspacePage)),
     );
+    final firstSession = container
+        .read(terminalWorkspaceProvider)
+        .selectedTab!
+        .session;
+    final emitted = <int>[];
+    firstSession.controller.onOutput = emitted.addAll;
     await press(LogicalKeyboardKey.keyT);
     expect(container.read(terminalWorkspaceProvider).tabs, hasLength(2));
+    expect(emitted, isEmpty);
+
+    final secondSession = container
+        .read(terminalWorkspaceProvider)
+        .selectedTab!
+        .session;
+    secondSession.controller.onOutput = emitted.addAll;
 
     await press(LogicalKeyboardKey.keyD);
     await press(LogicalKeyboardKey.keyD, shift: true);
     expect(container.read(terminalWorkspaceProvider).panes, hasLength(3));
+    expect(emitted, isEmpty);
 
     // Cmd+W closes the focused pane, not the whole tab group.
     await press(LogicalKeyboardKey.keyW);

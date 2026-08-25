@@ -21,10 +21,12 @@ import 'machine_status_bar.dart';
 class TerminalWorkspacePage extends ConsumerWidget {
   const TerminalWorkspacePage({
     super.key,
+    this.onAppKeyEvent,
     this.onSelectNextTab,
     this.onSelectPaneNumber,
   });
 
+  final FocusOnKeyEventCallback? onAppKeyEvent;
   final VoidCallback? onSelectNextTab;
   final ValueChanged<int>? onSelectPaneNumber;
   @override
@@ -65,6 +67,7 @@ class TerminalWorkspacePage extends ConsumerWidget {
         final ground = _WorkspaceGround(
           child: _LayoutNode(
             node: root,
+            onAppKeyEvent: onAppKeyEvent,
             onSelectNextTab: onSelectNextTab,
             onSelectPaneNumber: onSelectPaneNumber,
           ),
@@ -213,11 +216,13 @@ class _WorkspaceGround extends ConsumerWidget {
 class _LayoutNode extends ConsumerWidget {
   const _LayoutNode({
     required this.node,
+    this.onAppKeyEvent,
     this.onSelectNextTab,
     this.onSelectPaneNumber,
   });
 
   final PaneLayout node;
+  final FocusOnKeyEventCallback? onAppKeyEvent;
   final VoidCallback? onSelectNextTab;
   final ValueChanged<int>? onSelectPaneNumber;
 
@@ -227,6 +232,7 @@ class _LayoutNode extends ConsumerWidget {
       case PaneLayoutLeaf(:final paneId):
         return _TerminalPaneView(
           paneId: paneId,
+          onAppKeyEvent: onAppKeyEvent,
           onSelectNextTab: onSelectNextTab,
           onSelectPaneNumber: onSelectPaneNumber,
         );
@@ -245,11 +251,13 @@ class _LayoutNode extends ConsumerWidget {
               .setSplitRatio(id, value),
           first: _LayoutNode(
             node: first,
+            onAppKeyEvent: onAppKeyEvent,
             onSelectNextTab: onSelectNextTab,
             onSelectPaneNumber: onSelectPaneNumber,
           ),
           second: _LayoutNode(
             node: second,
+            onAppKeyEvent: onAppKeyEvent,
             onSelectNextTab: onSelectNextTab,
             onSelectPaneNumber: onSelectPaneNumber,
           ),
@@ -373,15 +381,21 @@ class _ResizableSplitState extends State<_ResizableSplit> {
 class _TerminalPaneView extends ConsumerWidget {
   const _TerminalPaneView({
     required this.paneId,
+    this.onAppKeyEvent,
     this.onSelectNextTab,
     this.onSelectPaneNumber,
   });
 
   final String paneId;
+  final FocusOnKeyEventCallback? onAppKeyEvent;
   final VoidCallback? onSelectNextTab;
   final ValueChanged<int>? onSelectPaneNumber;
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    final appResult = onAppKeyEvent?.call(node, event);
+    if (appResult != null && appResult != KeyEventResult.ignored) {
+      return appResult;
+    }
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
