@@ -104,9 +104,7 @@ class SettingsPage extends ConsumerWidget {
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text('settingsCursorBlink'.tr()),
-                          subtitle: Text(
-                            'settingsCursorBlinkDescription'.tr(),
-                          ),
+                          subtitle: Text('settingsCursorBlinkDescription'.tr()),
                           value: data.cursorBlink,
                           onChanged: (v) => ref
                               .read(terminalSettingsProvider.notifier)
@@ -115,9 +113,7 @@ class SettingsPage extends ConsumerWidget {
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text('settingsCursorStyle'.tr()),
-                          subtitle: Text(
-                            'settingsCursorStyleDescription'.tr(),
-                          ),
+                          subtitle: Text('settingsCursorStyleDescription'.tr()),
                           trailing: DropdownButton<maidterm.CursorShape>(
                             value: data.cursorStyle,
                             items: [
@@ -159,20 +155,21 @@ class SettingsPage extends ConsumerWidget {
                   ),
                   _SettingsSection(
                     title: 'settingsTabBar'.tr(),
-                    description:
-                        'settingsTabBarDescription'.tr(),
+                    description: 'settingsTabBarDescription'.tr(),
                     child: _TabBarPositionPicker(settings: data),
                   ),
                   _SettingsSection(
+                    title: 'settingsStatusBar'.tr(),
+                    description: 'settingsStatusBarDescription'.tr(),
+                    child: _StatusBarSettings(settings: data),
+                  ),
+                  _SettingsSection(
                     title: 'settingsTitleBar'.tr(),
-                    description:
-                        'settingsTitleBarDescription'.tr(),
+                    description: 'settingsTitleBarDescription'.tr(),
                     child: SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text('settingsShowMenuButton'.tr()),
-                      subtitle: Text(
-                        'settingsShowMenuButtonDescription'.tr(),
-                      ),
+                      subtitle: Text('settingsShowMenuButtonDescription'.tr()),
                       value: data.showTitleBarMenuButton,
                       onChanged: (v) => ref
                           .read(terminalSettingsProvider.notifier)
@@ -195,8 +192,7 @@ class SettingsPage extends ConsumerWidget {
                   ),
                   _SettingsSection(
                     title: 'settingsTerminalThemes'.tr(),
-                    description:
-                        'settingsTerminalThemesDescription'.tr(),
+                    description: 'settingsTerminalThemesDescription'.tr(),
                     child: Column(
                       children: [
                         _TerminalThemeTile(
@@ -233,13 +229,12 @@ class SettingsPage extends ConsumerWidget {
                   ),
                   _SettingsSection(
                     title: 'settingsAbout'.tr(),
-                    description:
-                        'settingsAboutDescription'.tr(),
+                    description: 'settingsAboutDescription'.tr(),
                     child: ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Symbols.info),
                       title: Text('settingsAboutTile'.tr()),
-                                            trailing: const Icon(Symbols.chevron_right),
+                      trailing: const Icon(Symbols.chevron_right),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           settings: const RouteSettings(name: '/about'),
@@ -340,6 +335,116 @@ class _TabBarPositionPicker extends ConsumerWidget {
   }
 }
 
+class _StatusBarSettings extends ConsumerWidget {
+  const _StatusBarSettings({required this.settings});
+
+  final TerminalSettings settings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(terminalSettingsProvider.notifier);
+    final orderedMetrics = [...settings.statusBarMetrics];
+    final selected = orderedMetrics.toSet();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text('settingsStatusBarEnabled'.tr()),
+          subtitle: Text('settingsStatusBarEnabledDescription'.tr()),
+          value: settings.showStatusBar,
+          onChanged: notifier.setShowStatusBar,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'settingsStatusBarSignals'.tr(),
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final metric in StatusMetric.values)
+              FilterChip(
+                label: Text(_statusMetricLabel(metric)),
+                selected: selected.contains(metric),
+                onSelected: (value) {
+                  final next = [...orderedMetrics];
+                  if (value) {
+                    if (!next.contains(metric)) next.add(metric);
+                  } else {
+                    next.remove(metric);
+                  }
+                  notifier.setStatusBarMetrics(next);
+                },
+              ),
+          ],
+        ),
+        if (orderedMetrics.length > 1) ...[
+          const SizedBox(height: 10),
+          Text(
+            'settingsStatusBarOrder'.tr(),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            itemCount: orderedMetrics.length,
+            onReorderItem: (oldIndex, newIndex) {
+              final next = [...orderedMetrics];
+              final metric = next.removeAt(oldIndex);
+              next.insert(newIndex, metric);
+              notifier.setStatusBarMetrics(next);
+            },
+            itemBuilder: (context, index) {
+              final metric = orderedMetrics[index];
+              return ListTile(
+                key: ValueKey(metric),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: ReorderableDragStartListener(
+                  index: index,
+                  child: const Icon(Icons.drag_handle),
+                ),
+                title: Text(_statusMetricLabel(metric)),
+              );
+            },
+          ),
+        ],
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: Text('settingsStatusBarRefresh'.tr())),
+            Text(
+              '${settings.statusBarRefreshSeconds}s',
+              style: Theme.of(context).textTheme.labelLarge
+                  ?.copyWith(fontFamily: 'IBM Plex Mono'),
+            ),
+          ],
+        ),
+        Slider(
+          value: settings.statusBarRefreshSeconds.toDouble(),
+          min: 1,
+          max: 10,
+          divisions: 9,
+          label: '${settings.statusBarRefreshSeconds}s',
+          onChanged: (value) =>
+              notifier.setStatusBarRefreshSeconds(value.round()),
+        ),
+      ],
+    );
+  }
+}
+
+String _statusMetricLabel(StatusMetric metric) => switch (metric) {
+  StatusMetric.cpu => 'settingsStatusBarCpu'.tr(),
+  StatusMetric.memory => 'settingsStatusBarMemory'.tr(),
+  StatusMetric.network => 'settingsStatusBarNetwork'.tr(),
+  StatusMetric.battery => 'settingsStatusBarBattery'.tr(),
+};
+
 class _BackgroundImageSettings extends ConsumerWidget {
   const _BackgroundImageSettings();
 
@@ -428,7 +533,9 @@ class _BackgroundImageSettings extends ConsumerWidget {
     } on Object catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('settingsBackgroundSaveError'.tr(args: ['$error']))),
+        SnackBar(
+          content: Text('settingsBackgroundSaveError'.tr(args: ['$error'])),
+        ),
       );
     }
   }
@@ -722,9 +829,7 @@ class _SeedColorPickerState extends ConsumerState<_SeedColorPicker> {
   void _applyHex(String value) {
     final color = _colorFromHex(value);
     if (color == null) {
-      setState(
-        () => _hexError = 'settingsHexError'.tr(),
-      );
+      setState(() => _hexError = 'settingsHexError'.tr());
       return;
     }
     setState(() => _hexError = null);
@@ -862,9 +967,7 @@ class _ColorEditDialogState extends State<_ColorEditDialog> {
   void _updateFromHex(String value) {
     final color = _colorFromHex(value);
     setState(() {
-      _colorError = color == null
-          ? 'settingsHexError'.tr()
-          : null;
+      _colorError = color == null ? 'settingsHexError'.tr() : null;
       if (color != null) {
         _red = color.r.toInt();
         _green = color.g.toInt();
@@ -884,9 +987,7 @@ class _ColorEditDialogState extends State<_ColorEditDialog> {
   void _save() {
     final color = _colorFromHex(_hexController.text);
     if (color == null) {
-      setState(
-        () => _colorError = 'settingsHexError'.tr(),
-      );
+      setState(() => _colorError = 'settingsHexError'.tr());
       return;
     }
     Navigator.of(context).pop(color);

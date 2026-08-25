@@ -8,8 +8,10 @@ import 'package:material_ui/material_ui.dart'
     show GlobalMaterialLocalizations;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:maidterm_app/settings/about_page.dart';
 import 'package:maidterm_app/settings/settings_page.dart';
 import 'package:maidterm_app/settings/terminal_fonts.dart';
@@ -78,9 +80,7 @@ void main() {
       'terminal.cursorStyle': 'bar',
     });
 
-    await tester.pumpWidget(
-      buildSettings(const SettingsPage()),
-    );
+    await tester.pumpWidget(buildSettings(const SettingsPage()));
     await tester.pumpAndSettle();
 
     expect(find.text('settingsTitle'.tr()), findsOneWidget);
@@ -134,6 +134,41 @@ void main() {
       'left',
     );
   });
+  testWidgets('status bar preferences persist selected signals', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'terminal.showStatusBar': true});
+
+    await tester.pumpWidget(buildSettings(const SettingsPage()));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('settingsStatusBar'.tr()),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('settingsStatusBarEnabled'.tr()));
+    await tester.tap(find.text('settingsStatusBarBattery'.tr()));
+    await tester.pumpAndSettle();
+
+    final settings = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsPage)),
+    ).read(terminalSettingsProvider).value!;
+    expect(settings.showStatusBar, isFalse);
+    expect(settings.statusBarMetrics, contains(StatusMetric.battery));
+    expect(
+      (await SharedPreferences.getInstance()).getBool('terminal.showStatusBar'),
+      isFalse,
+    );
+    expect(
+      (await SharedPreferences.getInstance()).getString(
+        'terminal.statusBarMetrics',
+      ),
+      contains('battery'),
+    );
+  });
 
   testWidgets('edits and persists both pane margin modes', (tester) async {
     SharedPreferences.setMockInitialValues({});
@@ -149,7 +184,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final normalLeft = find.byKey(ValueKey('${'settingsPaneNormalMode'.tr()}:margin-0'));
+    final normalLeft = find.byKey(
+      ValueKey('${'settingsPaneNormalMode'.tr()}:margin-0'),
+    );
     final fullScreenTop = find.byKey(
       ValueKey('${'settingsPaneFullScreenMode'.tr()}:margin-1'),
     );
@@ -264,10 +301,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('accent-color-edit')));
     await tester.pumpAndSettle();
-    expect(
-      find.text('settingsColorDialogHelp'.tr()),
-      findsOneWidget,
-    );
+    expect(find.text('settingsColorDialogHelp'.tr()), findsOneWidget);
 
     final dialogHexField = find.descendant(
       of: find.byType(AlertDialog),
@@ -287,9 +321,7 @@ void main() {
     );
     expect(find.byType(AlertDialog), findsNothing);
   });
-  testWidgets('language dropdown switches locale and persists', (
-    tester,
-  ) async {
+  testWidgets('language dropdown switches locale and persists', (tester) async {
     await tester.pumpWidget(buildSettings(const SettingsPage()));
     await tester.pumpAndSettle();
 

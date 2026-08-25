@@ -15,6 +15,7 @@ import 'session_layout.dart';
 import 'terminal_surface.dart';
 import 'window_tab_transfer.dart';
 import 'terminal_workspace.dart';
+import 'machine_status_bar.dart';
 
 /// The main screen: one workspace-wide tab strip around resizable split panes.
 class TerminalWorkspacePage extends ConsumerWidget {
@@ -30,13 +31,13 @@ class TerminalWorkspacePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final coordinator = ref.watch(multiWindowCoordinatorProvider);
     final workspace = ref.watch(terminalWorkspaceProvider);
-    late final Widget content;
+    late final Widget workspaceContent;
     if (workspace.tabs.isEmpty) {
-      content = _EmptyWorkspace();
+      workspaceContent = _EmptyWorkspace();
     } else {
       final root = workspace.layout;
       if (root == null) {
-        content = _EmptyWorkspace();
+        workspaceContent = _EmptyWorkspace();
       } else {
         final settings = ref.watch(terminalSettingsProvider).value;
         final tabBarPosition = settings?.tabBarPosition ?? TabBarPosition.top;
@@ -84,13 +85,19 @@ class TerminalWorkspacePage extends ConsumerWidget {
                 )
               : ground,
         );
-        content = vertical
+        workspaceContent = vertical
             ? Row(children: tabBarFirst ? [tabBar, layout] : [layout, tabBar])
             : Column(
                 children: tabBarFirst ? [tabBar, layout] : [layout, tabBar],
               );
       }
     }
+    final content = Column(
+      children: [
+        Expanded(child: workspaceContent),
+        const MachineStatusBar(),
+      ],
+    );
 
     return ValueListenableBuilder<ExternalWorkspaceDrag?>(
       valueListenable: coordinator.externalDrag,

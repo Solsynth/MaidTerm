@@ -9,6 +9,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'terminal_color_scheme.dart';
 import 'terminal_fonts.dart';
 
+/// A machine signal shown in the optional workspace status bar.
+enum StatusMetric { cpu, memory, network, battery }
+
 /// Placement of the workspace-wide tab bar.
 enum TabBarPosition { top, bottom, left, right }
 
@@ -31,6 +34,13 @@ class TerminalSettings {
     this.tabBarPosition = TabBarPosition.top,
     this.tabBarWidth = 180.0,
     this.showTitleBarMenuButton = false,
+    this.showStatusBar = false,
+    this.statusBarMetrics = const [
+      StatusMetric.cpu,
+      StatusMetric.memory,
+      StatusMetric.network,
+    ],
+    this.statusBarRefreshSeconds = 2,
   });
 
   final double fontSize;
@@ -67,9 +77,19 @@ class TerminalSettings {
 
   /// Width of left/right tab bars in logical pixels.
   final double tabBarWidth;
+
   /// Shows the app menu at the top-left of the title bar and centers the
   /// title. Meant for platforms without a system menu bar.
   final bool showTitleBarMenuButton;
+
+  /// Whether the floating machine status bar is visible.
+  final bool showStatusBar;
+
+  /// Signals rendered in the floating machine status bar.
+  final List<StatusMetric> statusBarMetrics;
+
+  /// Poll interval for machine signals, in seconds.
+  final int statusBarRefreshSeconds;
 
   TerminalSettings copyWith({
     double? fontSize,
@@ -87,6 +107,9 @@ class TerminalSettings {
     TabBarPosition? tabBarPosition,
     double? tabBarWidth,
     bool? showTitleBarMenuButton,
+    bool? showStatusBar,
+    List<StatusMetric>? statusBarMetrics,
+    int? statusBarRefreshSeconds,
   }) => TerminalSettings(
     fontSize: fontSize ?? this.fontSize,
     cursorBlink: cursorBlink ?? this.cursorBlink,
@@ -102,7 +125,12 @@ class TerminalSettings {
     seedColor: seedColor ?? this.seedColor,
     tabBarPosition: tabBarPosition ?? this.tabBarPosition,
     tabBarWidth: tabBarWidth ?? this.tabBarWidth,
-    showTitleBarMenuButton: showTitleBarMenuButton ?? this.showTitleBarMenuButton,
+    showTitleBarMenuButton:
+        showTitleBarMenuButton ?? this.showTitleBarMenuButton,
+    showStatusBar: showStatusBar ?? this.showStatusBar,
+    statusBarMetrics: statusBarMetrics ?? this.statusBarMetrics,
+    statusBarRefreshSeconds:
+        statusBarRefreshSeconds ?? this.statusBarRefreshSeconds,
   );
 }
 
@@ -127,6 +155,9 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
   static const _seedColorKey = 'app.seedColor';
   static const _tabBarPositionKey = 'terminal.tabBarPosition';
   static const _showTitleBarMenuButtonKey = 'terminal.showTitleBarMenuButton';
+  static const _showStatusBarKey = 'terminal.showStatusBar';
+  static const _statusBarMetricsKey = 'terminal.statusBarMetrics';
+  static const _statusBarRefreshSecondsKey = 'terminal.statusBarRefreshSeconds';
 
   @override
   Future<TerminalSettings> build() async {
@@ -174,6 +205,13 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
       },
       showTitleBarMenuButton:
           prefs.getBool(_showTitleBarMenuButtonKey) ?? false,
+      showStatusBar: prefs.getBool(_showStatusBarKey) ?? false,
+      statusBarMetrics: _decodeStatusMetrics(
+        prefs.getString(_statusBarMetricsKey),
+      ),
+      statusBarRefreshSeconds: _sanitizeStatusBarRefreshSeconds(
+        prefs.getInt(_statusBarRefreshSecondsKey) ?? 2,
+      ),
     );
   }
 
@@ -271,12 +309,63 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tabBarPositionKey, value.name);
   }
+
   Future<void> setShowTitleBarMenuButton(bool value) async {
     await _update(state.value!.copyWith(showTitleBarMenuButton: value));
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_showTitleBarMenuButtonKey, value);
   }
+
+  Future<void> setShowStatusBar(bool value) async {
+    await _update(state.value!.copyWith(showStatusBar: value));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_showStatusBarKey, value);
+  }
+
+  Future<void> setStatusBarMetrics(List<StatusMetric> value) async {
+    final metrics = _sanitizeStatusMetrics(value);
+    await _update(state.value!.copyWith(statusBarMetrics: metrics));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_statusBarMetricsKey, _encodeStatusMetrics(metrics));
+  }
+
+  Future<void> setStatusBarRefreshSeconds(int value) async {
+    final seconds = _sanitizeStatusBarRefreshSeconds(value);
+    await _update(state.value!.copyWith(statusBarRefreshSeconds: seconds));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_statusBarRefreshSecondsKey, seconds);
+  }
 }
+
+List<StatusMetric> _sanitizeStatusMetrics(Iterable<StatusMetric> values) {
+  final unique = <StatusMetric>{...values};
+  if (unique.isEmpty) return const [StatusMetric.cpu, StatusMetric.memory];
+  return List.unmodifiable(unique);
+}
+
+String _encodeStatusMetrics(Iterable<StatusMetric> values) =>
+    values.map((metric) => metric.name).join(',');
+
+List<StatusMetric> _decodeStatusMetrics(String? encoded) {
+  if (encoded == null || encoded.isEmpty) {
+    return const [StatusMetric.cpu, StatusMetric.memory, StatusMetric.network];
+  }
+  final metrics = encoded
+      .split(',')
+      .map(
+        (name) => switch (name) {
+          'cpu' => StatusMetric.cpu,
+          'memory' => StatusMetric.memory,
+          'network' => StatusMetric.network,
+          'battery' => StatusMetric.battery,
+          _ => null,
+        },
+      )
+      .whereType<StatusMetric>();
+  return _sanitizeStatusMetrics(metrics);
+}
+
+int _sanitizeStatusBarRefreshSeconds(int value) => value.clamp(1, 10).toInt();
 
 double _sanitizeTabBarWidth(double value) {
   if (!value.isFinite) return 180.0;
