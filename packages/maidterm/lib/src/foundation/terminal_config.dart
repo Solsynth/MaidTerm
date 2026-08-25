@@ -142,12 +142,10 @@ class TerminalConfig {
   /// Controls what the terminal reports when a program sends a device
   /// attributes request.
   ///
-  /// The default does not advertise feature 4 (sixel). Although sixel
-  /// input is decoded and rendered via kitty graphics, advertising it
-  /// makes capability-negotiating clients (e.g. yazi) prefer their sixel
-  /// code path, which erases previews by overwriting cells — something a
-  /// retained kitty placement cannot honor. With only kitty advertised,
-  /// such clients use the graphics protocol natively.
+  /// The default advertises feature 4 (sixel) because sixel input is
+  /// decoded and re-rendered via kitty graphics (see VtGraphicsRewriter),
+  /// so the claim is truthful and capability probes (e.g. terminal
+  /// ability checks, yazi, chafa) pass.
   final DeviceAttributesResponse deviceAttributes;
 
   const TerminalConfig({
@@ -163,7 +161,9 @@ class TerminalConfig {
     this.kittyImageStorageLimit = 64 * 1024 * 1024,
     this.selectionClearOnTyping = true,
     this.scrollToBottom = .onKeystroke,
-    this.deviceAttributes = const DeviceAttributesResponse(),
+    this.deviceAttributes = const DeviceAttributesResponse(
+      primary: DeviceAttributesPrimary(features: [4]),
+    ),
   }) : assert(cols > 0, 'cols must be positive'),
        assert(rows > 0, 'rows must be positive'),
        assert(scrollbackLimit >= 0, 'scrollbackLimit must be non-negative'),

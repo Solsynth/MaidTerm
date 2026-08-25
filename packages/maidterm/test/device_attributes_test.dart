@@ -6,7 +6,7 @@ import 'package:maidterm/src/widgets/terminal_controller_impl.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('DA1 does not advertise sixel', () async {
+  test('DA1 advertises sixel (feature 4)', () async {
     final controller = TerminalControllerImpl();
     final responses = <String>[];
     controller.onOutput = (Uint8List bytes) {
@@ -14,6 +14,6 @@ void main() {
     };
     controller.write(Uint8List.fromList('\x1b[0c'.codeUnits));
     await Future<void>.delayed(Duration.zero);
-    expect(responses.join(), '\x1b[?62c');
+    expect(responses.join(), '\x1b[?62;4c');
   });
 }
