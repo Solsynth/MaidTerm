@@ -11,6 +11,11 @@ abstract final class LinkPathResolver {
   static final _lineColumnPattern = RegExp(r'^(.*?):([0-9]+)(?::([0-9]+))?$');
   static final _windowsDrivePathPattern = RegExp(r'^[A-Za-z]:[\\/]');
   static final _windowsFileUriPathPattern = RegExp('^/[A-Za-z]:/');
+  static final _windowsSeparatorPattern = RegExp(r'\\(?! )');
+  // go install module@version arguments are identifiers, not file paths.
+  static final _goModuleVersionPattern = RegExp(
+    r'^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}/.+@[^/]+$',
+  );
 
   static bool isWindowsDrivePath(String path) {
     return _windowsDrivePathPattern.hasMatch(path);
@@ -18,6 +23,8 @@ abstract final class LinkPathResolver {
 
   static bool looksLikePath(String text) {
     final path = _fileUriPath(text) ?? text;
+    if (_goModuleVersionPattern.hasMatch(path)) return false;
+
     final segments = path
         .split(RegExp(r'[/\\]+'))
         .where((segment) => segment.isNotEmpty)
@@ -120,7 +127,7 @@ abstract final class LinkPathResolver {
   static bool _isWindowsPath(String path) {
     return isWindowsDrivePath(path) ||
         _isWindowsUncPath(path) ||
-        path.contains(r'\');
+        _windowsSeparatorPattern.hasMatch(path);
   }
 
   static bool _isWindowsUncPath(String path) => path.startsWith(r'\\');
@@ -134,8 +141,9 @@ abstract final class LinkPathResolver {
   }
 
   static String _normalizePath(String path) {
-    if (_isWindowsPath(path)) return _normalizeWindowsPath(path);
-    return _normalizePosixPath(path);
+    final unescaped = path.replaceAll(r'\ ', ' ');
+    if (_isWindowsPath(unescaped)) return _normalizeWindowsPath(unescaped);
+    return _normalizePosixPath(unescaped);
   }
 
   static String _normalizePosixPath(String path) {

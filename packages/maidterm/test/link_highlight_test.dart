@@ -236,6 +236,45 @@ void main() {
       expect(LinkPathResolver.parseFile('/tmp', null), isNull);
       expect(LinkPathResolver.parseFile('/tmp/log.txt', null), isNotNull);
     });
+    test('does not consume prose or highlight Go module versions', () {
+      final c = controller();
+      final text = [
+        '/stargate/accounts/me to see',
+        r'/Applications/Application\ Support/bin',
+        'go install '
+            'src.solsynth.dev/solsynth/distribution/cmd/express'
+            '@593dfb7a41a9',
+      ].join('\n');
+      c.terminal.write(Uint8List.fromList('$text\n'.codeUnits));
+
+      final snapshot = LinkResolver().buildSnapshot(
+        c.terminal,
+        const LinkSettings(),
+        rows: 40,
+        cols: 120,
+      );
+
+      expect(snapshot.matches.map((match) => match.link.text), [
+        '/stargate/accounts/me',
+        r'/Applications/Application\ Support/bin',
+      ]);
+      expect(
+        LinkPathResolver.parseFile(
+          r'/Applications/Application\ Support/bin',
+          null,
+        )!.resolvedPath,
+        '/Applications/Application Support/bin',
+      );
+      expect(
+        LinkPathResolver.parseFile(
+          'src.solsynth.dev/solsynth/distribution/cmd/express'
+          '@593dfb7a41a9',
+          null,
+        ),
+        isNull,
+      );
+    });
+
 
     test('custom rules carry their styles into resolved matches', () {
       final c = controller();

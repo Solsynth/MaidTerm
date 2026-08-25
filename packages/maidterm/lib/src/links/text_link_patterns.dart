@@ -22,22 +22,26 @@ abstract final class TextLinkPatterns {
       r'https?://|mailto:|ftp://|file:|ssh:|git://|ssh://|tel:|magnet:|ipfs://|ipns://|gemini://|gopher://|news:';
   static const _ipv6Url = r'\[[0-9a-fA-F:]+\](?::[0-9]+)?';
   static const _urlChars = r'[\w\-.~:/?#@!$&*+,;=%\[\]\(\)]';
-  static const _pathChars = r'[\w\-.~:/$?#@!&*+;=%]';
+  // Shell-escaped spaces are path characters; bare spaces terminate paths.
+  static const _pathChar = r'(?:[\w\-.~:/$?#@!&*+;=%]|\\ )';
+  static const _pathChars = _pathChar;
   static final _posixRootedPrefix = [
-    r'(?:',
     r'\.\./|\.\/|(?<!\w)~/|(?:[\w][\w\-.]*/)*(?<!\w)\$[A-Za-z_]\w*/|\.[\w][\w\-.]*/',
-    r'|(?<![\w~/])/(?=[\w\-.~:/$?#@!&*+;=%]*\/[\w\-.~:/$?#@!&*+;=%])',
-    r')',
+    r'|(?<![\w~/])/(?=',
+    _pathChars,
+    r'*\/',
+    _pathChars,
+    r'*)',
   ].join();
   static final _posixDottedPath = [
     r'(?=[\w\-.~:/$?#@!&*+;=%]*\.)',
     _pathChars,
-    r'+(?:(?<!:) (?!\w+://)(?!\.{0,2}/)(?!~/)[\w\-.~:/$?#@!&*+;=%]*[/.])*(?<!:)',
+    r'+(?<!:)',
   ].join();
   static final _posixUndottedPath = [
     r'(?![\w\-.~:/$?#@!&*+;=%]*\.)',
     _pathChars,
-    r'+(?:(?<!:) (?!\w+://)(?!\.{0,2}/)(?!~/)[\w\-.~:/$?#@!&*+;=%]+)*(?<!:)',
+    r'+(?<!:)',
   ].join();
   static const _posixBarePath =
       r'(?<![\w$~])[\w][\w\-.]*/[\w\-.~:/$?#@!&*+;=%]*\.[\w\-.~:/$?#@!&*+;=%]+';
