@@ -169,27 +169,38 @@ class _Metric extends StatelessWidget {
       ),
       _ => Text(spec.value, style: mono),
     };
-    return Row(
-      children: [
-        Icon(spec.icon, size: 16, color: spec.color),
-        const SizedBox(width: 6),
-        Flexible(
-          fit: FlexFit.loose,
-          child: FittedBox(
-            alignment: Alignment.centerLeft,
-            fit: BoxFit.scaleDown,
-            child: valueWidget,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _MetricChart(
-            metric: metric,
-            snapshot: snapshot,
-            color: spec.color,
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final chartWidth = math.min(
+          150.0,
+          math.max(54.0, constraints.maxWidth * 0.42),
+        );
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(spec.icon, size: 16, color: spec.color),
+            const SizedBox(width: 6),
+            Flexible(
+              fit: FlexFit.loose,
+              child: FittedBox(
+                alignment: Alignment.centerLeft,
+                fit: BoxFit.scaleDown,
+                child: valueWidget,
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: chartWidth,
+              child: _MetricChart(
+                metric: metric,
+                snapshot: snapshot,
+                color: spec.color,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
