@@ -81,6 +81,7 @@
   "settingsStatusBarNetwork": "Network",
   "settingsStatusBarBattery": "Battery",
   "settingsStatusBarOrder": "Drag to reorder the modules.",
+  "settingsStatusBarHistory": "Chart history",
   "settingsStatusBarRefresh": "Refresh interval",
   "settingsPaneFullScreenMode": "Full-screen mode",
   "settingsPaneMargins": "Pane margins",

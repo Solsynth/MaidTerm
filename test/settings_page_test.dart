@@ -152,12 +152,19 @@ void main() {
     await tester.tap(find.text('settingsStatusBarEnabled'.tr()));
     await tester.tap(find.text('settingsStatusBarBattery'.tr()));
     await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsPage)),
+    );
+    await container
+        .read(terminalSettingsProvider.notifier)
+        .setStatusBarHistoryMinutes(10);
 
     final settings = ProviderScope.containerOf(
       tester.element(find.byType(SettingsPage)),
     ).read(terminalSettingsProvider).value!;
     expect(settings.showStatusBar, isFalse);
     expect(settings.statusBarMetrics, contains(StatusMetric.battery));
+    expect(settings.statusBarHistoryMinutes, 10);
     expect(
       (await SharedPreferences.getInstance()).getBool('terminal.showStatusBar'),
       isFalse,
@@ -167,6 +174,12 @@ void main() {
         'terminal.statusBarMetrics',
       ),
       contains('battery'),
+    );
+    expect(
+      (await SharedPreferences.getInstance()).getInt(
+        'terminal.statusBarHistoryMinutes',
+      ),
+      10,
     );
   });
 

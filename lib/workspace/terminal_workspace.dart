@@ -15,10 +15,12 @@ import 'session_layout.dart';
 import '../window_runtime.dart';
 import 'window_tab_transfer.dart';
 
-/// Shared poller resolving each tab's foreground process name for titles.
-final processTitleMonitorProvider = Provider<ProcessTitleMonitor>(
-  (ref) => ProcessTitleMonitor(),
-);
+/// Shared poller resolving each tab's foreground process name and RSS.
+final processTitleMonitorProvider = Provider<ProcessTitleMonitor>((ref) {
+  final monitor = ProcessTitleMonitor();
+  ref.onDispose(monitor.dispose);
+  return monitor;
+});
 
 /// Creates a shell session bound to a terminal pane.
 typedef LocalShellSessionFactory = LocalShellSession Function({
@@ -50,11 +52,10 @@ class TerminalTab {
 
   final String id;
   final LocalShellSession session;
-
   String get title => session.title.value;
   maidterm.TerminalController get controller => session.controller;
   int? get sessionId => session.sessionId;
-
+  int? get ptyPid => session.ptyPid;
   ValueListenable<maidterm.TerminalProgress?> get progress => session.progress;
 
   @override

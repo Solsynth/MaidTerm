@@ -59,6 +59,23 @@ void main() {
       expect(foregroundProcessName(table, 99), isNull);
     });
   });
+  group('foregroundProcessMemoryBytes', () {
+    test('sums RSS for the focused foreground process group', () {
+      final table = parsePsTable('''
+        100 1 100 ttys001 Ss 40000 -zsh
+        101 100 101 ttys001 S+ 120000 vim
+        102 101 101 ttys001 S+ 80000 vim-helper
+        103 100 103 ttys001 S 90000 sleep
+      ''');
+      expect(table[101]!.rssKb, 120000);
+      expect(foregroundProcessMemoryBytes(table, 100), 200000 * 1024);
+    });
+
+    test('falls back to shell RSS while the pane is idle', () {
+      final table = parsePsTable('100 1 100 ttys001 Ss 40000 -zsh\n');
+      expect(foregroundProcessMemoryBytes(table, 100), 40000 * 1024);
+    });
+  });
 
   group('isShellProcessName', () {
     test('detects shells with login dashes, paths, and exe suffixes', () {
@@ -76,8 +93,10 @@ void main() {
   });
 
   group('runningProgramNamesInTable', () {
-    test('lists non-shell processes on the session tty, deduped and sorted', () {
-      final table = parsePsTable('''
+    test(
+      'lists non-shell processes on the session tty, deduped and sorted',
+      () {
+        final table = parsePsTable('''
         100 1 ttys001 Ss -zsh
         101 100 ttys001 S+ vim
         102 100 ttys001 S sleep
@@ -85,8 +104,13 @@ void main() {
         104 100 ttys001 S node
         200 1 ttys002 Ss bash
       ''');
-      expect(runningProgramNamesInTable(table, 100), ['node', 'sleep', 'vim']);
-    });
+        expect(runningProgramNamesInTable(table, 100), [
+          'node',
+          'sleep',
+          'vim',
+        ]);
+      },
+    );
 
     test('ignores the shell itself, nested shells, and zombies', () {
       final table = parsePsTable('''

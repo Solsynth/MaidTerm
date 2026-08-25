@@ -5,6 +5,25 @@ import 'dart:math' as math;
 
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+/// One point in the statusbar's rolling history.
+class SystemMetricsPoint {
+  const SystemMetricsPoint({
+    required this.sampledAt,
+    this.cpuUsage,
+    this.memoryUsage,
+    this.networkDownloadBytesPerSecond,
+    this.networkUploadBytesPerSecond,
+    this.batteryLevel,
+  });
+
+  final DateTime sampledAt;
+  final double? cpuUsage;
+  final double? memoryUsage;
+  final double? networkDownloadBytesPerSecond;
+  final double? networkUploadBytesPerSecond;
+  final double? batteryLevel;
+}
+
 /// One sample of machine activity. Values are null when the host cannot
 /// expose that signal (for example, a desktop without a battery).
 class SystemMetricsSnapshot {
@@ -17,6 +36,7 @@ class SystemMetricsSnapshot {
     this.networkUploadBytesPerSecond,
     this.batteryLevel,
     this.batteryCharging = false,
+    this.history = const [],
   });
 
   final double? cpuUsage;
@@ -27,18 +47,21 @@ class SystemMetricsSnapshot {
   final double? networkUploadBytesPerSecond;
   final double? batteryLevel;
   final bool batteryCharging;
+  final List<SystemMetricsPoint> history;
 }
 
+typedef SystemMetricsQuery = ({int refreshSeconds, int historyMinutes});
+
 final systemMetricsProvider = StreamProvider.autoDispose
-    .family<SystemMetricsSnapshot, int>((ref, refreshSeconds) async* {
+    .family<SystemMetricsSnapshot, SystemMetricsQuery>((ref, query) async* {
       if (Platform.environment['FLUTTER_TEST'] == 'true') {
         yield const SystemMetricsSnapshot();
         return;
       }
-      final reader = SystemMetricsReader();
+      final reader = SystemMetricsReader(historyMinutes: query.historyMinutes);
       while (true) {
         yield await reader.read();
-        await Future<void>.delayed(Duration(seconds: refreshSeconds));
+        await Future<void>.delayed(Duration(seconds: query.refreshSeconds));
       }
     });
 
@@ -46,6 +69,10 @@ final systemMetricsProvider = StreamProvider.autoDispose
 /// macOS is the primary target, with direct procfs readers for Linux and a
 /// small PowerShell query for Windows.
 class SystemMetricsReader {
+  SystemMetricsReader({this.historyMinutes = 5});
+
+  final int historyMinutes;
+  final _history = <SystemMetricsPoint>[];
   int? _previousCpuTotal;
   int? _previousCpuIdle;
   int? _previousNetworkRx;
@@ -53,14 +80,42 @@ class SystemMetricsReader {
   DateTime? _previousSampleTime;
 
   Future<SystemMetricsSnapshot> read() async {
+    SystemMetricsSnapshot? snapshot;
     try {
-      if (Platform.isMacOS) return await _readMacOS();
-      if (Platform.isLinux) return await _readLinux();
-      if (Platform.isWindows) return await _readWindows();
+      if (Platform.isMacOS) snapshot = await _readMacOS();
+      if (Platform.isLinux) snapshot = await _readLinux();
+      if (Platform.isWindows) snapshot = await _readWindows();
     } on Object {
       // A metrics chip must never affect the terminal surface.
     }
-    return const SystemMetricsSnapshot();
+    return _withHistory(snapshot ?? const SystemMetricsSnapshot());
+  }
+
+  SystemMetricsSnapshot _withHistory(SystemMetricsSnapshot snapshot) {
+    final now = DateTime.now();
+    _history.add(
+      SystemMetricsPoint(
+        sampledAt: now,
+        cpuUsage: snapshot.cpuUsage,
+        memoryUsage: snapshot.memoryUsage,
+        networkDownloadBytesPerSecond: snapshot.networkDownloadBytesPerSecond,
+        networkUploadBytesPerSecond: snapshot.networkUploadBytesPerSecond,
+        batteryLevel: snapshot.batteryLevel,
+      ),
+    );
+    final cutoff = now.subtract(Duration(minutes: historyMinutes));
+    _history.removeWhere((point) => point.sampledAt.isBefore(cutoff));
+    return SystemMetricsSnapshot(
+      cpuUsage: snapshot.cpuUsage,
+      memoryUsage: snapshot.memoryUsage,
+      memoryUsedBytes: snapshot.memoryUsedBytes,
+      memoryTotalBytes: snapshot.memoryTotalBytes,
+      networkDownloadBytesPerSecond: snapshot.networkDownloadBytesPerSecond,
+      networkUploadBytesPerSecond: snapshot.networkUploadBytesPerSecond,
+      batteryLevel: snapshot.batteryLevel,
+      batteryCharging: snapshot.batteryCharging,
+      history: List.unmodifiable(_history),
+    );
   }
 
   Future<SystemMetricsSnapshot> _readMacOS() async {

@@ -433,6 +433,26 @@ class _StatusBarSettings extends ConsumerWidget {
           onChanged: (value) =>
               notifier.setStatusBarRefreshSeconds(value.round()),
         ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: Text('settingsStatusBarHistory'.tr())),
+            Text(
+              '${settings.statusBarHistoryMinutes}m',
+              style: Theme.of(context).textTheme.labelLarge
+                  ?.copyWith(fontFamily: 'IBM Plex Mono'),
+            ),
+          ],
+        ),
+        Slider(
+          value: settings.statusBarHistoryMinutes.toDouble(),
+          min: 1,
+          max: 30,
+          divisions: 29,
+          label: '${settings.statusBarHistoryMinutes}m',
+          onChanged: (value) =>
+              notifier.setStatusBarHistoryMinutes(value.round()),
+        ),
       ],
     );
   }

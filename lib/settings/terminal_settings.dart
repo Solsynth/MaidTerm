@@ -41,6 +41,7 @@ class TerminalSettings {
       StatusMetric.network,
     ],
     this.statusBarRefreshSeconds = 2,
+    this.statusBarHistoryMinutes = 5,
   });
 
   final double fontSize;
@@ -91,6 +92,9 @@ class TerminalSettings {
   /// Poll interval for machine signals, in seconds.
   final int statusBarRefreshSeconds;
 
+  /// Amount of signal history rendered by the statusbar chart, in minutes.
+  final int statusBarHistoryMinutes;
+
   TerminalSettings copyWith({
     double? fontSize,
     bool? cursorBlink,
@@ -110,6 +114,7 @@ class TerminalSettings {
     bool? showStatusBar,
     List<StatusMetric>? statusBarMetrics,
     int? statusBarRefreshSeconds,
+    int? statusBarHistoryMinutes,
   }) => TerminalSettings(
     fontSize: fontSize ?? this.fontSize,
     cursorBlink: cursorBlink ?? this.cursorBlink,
@@ -131,6 +136,8 @@ class TerminalSettings {
     statusBarMetrics: statusBarMetrics ?? this.statusBarMetrics,
     statusBarRefreshSeconds:
         statusBarRefreshSeconds ?? this.statusBarRefreshSeconds,
+    statusBarHistoryMinutes:
+        statusBarHistoryMinutes ?? this.statusBarHistoryMinutes,
   );
 }
 
@@ -158,6 +165,7 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
   static const _showStatusBarKey = 'terminal.showStatusBar';
   static const _statusBarMetricsKey = 'terminal.statusBarMetrics';
   static const _statusBarRefreshSecondsKey = 'terminal.statusBarRefreshSeconds';
+  static const _statusBarHistoryMinutesKey = 'terminal.statusBarHistoryMinutes';
 
   @override
   Future<TerminalSettings> build() async {
@@ -211,6 +219,9 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
       ),
       statusBarRefreshSeconds: _sanitizeStatusBarRefreshSeconds(
         prefs.getInt(_statusBarRefreshSecondsKey) ?? 2,
+      ),
+      statusBarHistoryMinutes: _sanitizeStatusBarHistoryMinutes(
+        prefs.getInt(_statusBarHistoryMinutesKey) ?? 5,
       ),
     );
   }
@@ -335,6 +346,13 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_statusBarRefreshSecondsKey, seconds);
   }
+
+  Future<void> setStatusBarHistoryMinutes(int value) async {
+    final minutes = _sanitizeStatusBarHistoryMinutes(value);
+    await _update(state.value!.copyWith(statusBarHistoryMinutes: minutes));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_statusBarHistoryMinutesKey, minutes);
+  }
 }
 
 List<StatusMetric> _sanitizeStatusMetrics(Iterable<StatusMetric> values) {
@@ -364,6 +382,8 @@ List<StatusMetric> _decodeStatusMetrics(String? encoded) {
       .whereType<StatusMetric>();
   return _sanitizeStatusMetrics(metrics);
 }
+
+int _sanitizeStatusBarHistoryMinutes(int value) => value.clamp(1, 30).toInt();
 
 int _sanitizeStatusBarRefreshSeconds(int value) => value.clamp(1, 10).toInt();
 

@@ -145,6 +145,9 @@ class LocalShellSession {
   /// Stable native session ID used for cross-window attachment.
   int? get sessionId => _pty?.sessionId;
 
+  /// Operating-system PID of the shell backing this PTY.
+  int? get ptyPid => _ptyPid;
+
   /// Re-emits the destination viewport size to an attached PTY.
   void refreshResize() {
     if (_attachedSession) _controller.refreshResize();

@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 /// One row of the process table as reported by `ps`.
 final class ProcRow {
   const ProcRow({
@@ -9,10 +11,13 @@ final class ProcRow {
     required this.tty,
     required this.stat,
     required this.comm,
+    this.pgid,
+    this.rssKb,
   });
 
   final int pid;
   final int ppid;
+  final int? pgid;
 
   /// Controlling terminal, e.g. `ttys002` or `pts/3`; `??` when none.
   final String tty;
@@ -20,15 +25,16 @@ final class ProcRow {
   /// Process state flags. A trailing `+` marks the foreground process group
   /// of the controlling terminal.
   final String stat;
+  final int? rssKb;
 
   /// Executable name (basename; login shells carry a leading `-`).
   final String comm;
-
   bool get inForegroundGroup => stat.contains('+');
 }
 
-/// Parses `ps -eo pid=,ppid=,tty=,stat=,comm=` output into a pid-keyed
-/// table. Malformed lines are skipped.
+/// Parses `ps -eo pid=,ppid=,pgid=,tty=,stat=,rss=,comm=` output into a
+/// pid-keyed table. The legacy five-column shape remains accepted for tests
+/// and callers that only need process names.
 Map<int, ProcRow> parsePsTable(String output) {
   final table = <int, ProcRow>{};
   for (final line in output.split('\n')) {
@@ -37,12 +43,21 @@ Map<int, ProcRow> parsePsTable(String output) {
     final pid = int.tryParse(parts[0]);
     final ppid = int.tryParse(parts[1]);
     if (pid == null || ppid == null) continue;
+    final extended =
+        parts.length >= 7 &&
+        int.tryParse(parts[2]) != null &&
+        int.tryParse(parts[5]) != null;
+    final ttyIndex = extended ? 3 : 2;
+    final statIndex = extended ? 4 : 3;
+    final commIndex = extended ? 6 : 4;
     table[pid] = ProcRow(
       pid: pid,
       ppid: ppid,
-      tty: parts[2],
-      stat: parts[3],
-      comm: parts[4],
+      pgid: extended ? int.tryParse(parts[2]) : null,
+      tty: parts[ttyIndex],
+      stat: parts[statIndex],
+      rssKb: extended ? int.tryParse(parts[5]) : null,
+      comm: parts[commIndex],
     );
   }
   return table;
@@ -67,6 +82,35 @@ String? foregroundProcessName(Map<int, ProcRow> table, int shellPid) {
       : _deepestDescendant(table, candidates, shellPid) ?? shell;
   return pick.comm;
 }
+
+/// Resident memory for the foreground process group on the shell's tty.
+/// Returns bytes, or null when the process table has no RSS data.
+int? foregroundProcessMemoryBytes(Map<int, ProcRow> table, int shellPid) {
+  final shell = table[shellPid];
+  if (shell == null) return null;
+  final foreground = table.values
+      .where(
+        (row) =>
+            row.tty == shell.tty &&
+            row.inForegroundGroup &&
+            !row.stat.startsWith('Z'),
+      )
+      .toList();
+  if (foreground.isEmpty) return _rssBytes(shell.rssKb);
+  final pgid = foreground.first.pgid;
+  final rows = pgid == null
+      ? foreground
+      : table.values.where(
+          (row) =>
+              row.tty == shell.tty &&
+              row.pgid == pgid &&
+              !row.stat.startsWith('Z'),
+        );
+  final rssKb = rows.fold<int>(0, (sum, row) => sum + (row.rssKb ?? 0));
+  return rssKb == 0 ? null : rssKb * 1024;
+}
+
+int? _rssBytes(int? rssKb) => rssKb == null ? null : rssKb * 1024;
 
 ProcRow? _deepestDescendant(
   Map<int, ProcRow> table,
@@ -97,10 +141,7 @@ ProcRow? _deepestDescendant(
 /// controlling terminal belongs to that session, so foreground and
 /// background children are both counted; the shell itself, nested shells,
 /// and zombies are ignored.
-List<String> runningProgramNamesInTable(
-  Map<int, ProcRow> table,
-  int shellPid,
-) {
+List<String> runningProgramNamesInTable(Map<int, ProcRow> table, int shellPid) {
   final shell = table[shellPid];
   if (shell == null) return const [];
   final names = <String>{};
@@ -118,9 +159,25 @@ List<String> runningProgramNamesInTable(
 /// Shell executables whose idle presence means the tab should show the
 /// working directory instead of the process name.
 const _shellNames = {
-  'sh', 'bash', 'zsh', 'fish', 'ksh', 'csh', 'tcsh', 'dash', 'ash',
-  'pwsh', 'powershell', 'cmd', 'nu', 'elvish', 'xonsh', 'oil', 'ion',
-  'mksh', 'yash',
+  'sh',
+  'bash',
+  'zsh',
+  'fish',
+  'ksh',
+  'csh',
+  'tcsh',
+  'dash',
+  'ash',
+  'pwsh',
+  'powershell',
+  'cmd',
+  'nu',
+  'elvish',
+  'xonsh',
+  'oil',
+  'ion',
+  'mksh',
+  'yash',
 };
 
 /// Whether [comm] names a shell. Login-shell `-zsh` prefixes, path prefixes,
@@ -153,6 +210,8 @@ final class ProcessTitleMonitor {
 
   ProcessTitleMonitor();
 
+  final revision = ValueNotifier<int>(0);
+
   Map<int, ProcRow> _table = const {};
   final Set<int> _shellPids = {};
   final _listeners = <void Function()>[];
@@ -164,8 +223,7 @@ final class ProcessTitleMonitor {
 
   void addListener(void Function() listener) => _listeners.add(listener);
 
-  void removeListener(void Function() listener) =>
-      _listeners.remove(listener);
+  void removeListener(void Function() listener) => _listeners.remove(listener);
 
   /// Starts tracking a session whose shell is [shellPid].
   void track(int shellPid) {
@@ -189,6 +247,10 @@ final class ProcessTitleMonitor {
   String? foregroundName(int shellPid) =>
       foregroundProcessName(_table, shellPid);
 
+  /// RSS for the foreground process group of [shellPid], in bytes.
+  int? foregroundMemoryBytes(int shellPid) =>
+      foregroundProcessMemoryBytes(_table, shellPid);
+
   /// Whether the session of [shellPid] still runs non-shell programs per
   /// the most recent table refresh.
   bool sessionHasRunningPrograms(int shellPid) =>
@@ -203,12 +265,13 @@ final class ProcessTitleMonitor {
     if (_refreshing) return;
     _refreshing = true;
     try {
-      final result = await Process.run(
-        'ps',
-        const ['-eo', 'pid=,ppid=,tty=,stat=,comm='],
-      );
+      final result = await Process.run('ps', const [
+        '-eo',
+        'pid=,ppid=,pgid=,tty=,stat=,rss=,comm=',
+      ]);
       if (result.exitCode != 0) return;
       _table = parsePsTable(result.stdout as String);
+      revision.value++;
       for (final listener in List.of(_listeners)) {
         listener();
       }
@@ -217,5 +280,10 @@ final class ProcessTitleMonitor {
     } finally {
       _refreshing = false;
     }
+  }
+
+  void dispose() {
+    _timer?.cancel();
+    revision.dispose();
   }
 }
