@@ -83,9 +83,14 @@ void main() {
     expect(find.byIcon(Symbols.terminal), findsOneWidget);
     session.writeOutput(Uint8List.fromList(utf8.encode('output')));
     await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 150));
+    session.writeOutput(Uint8List.fromList(utf8.encode('more output')));
+    await tester.pump(const Duration(milliseconds: 50));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.byIcon(Symbols.terminal), findsOneWidget);
   });

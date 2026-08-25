@@ -10,8 +10,14 @@ import 'package:window_manager/window_manager.dart';
 import 'package:maidterm_app/notifications/app_notifications.dart';
 import 'package:maidterm_app/shell/process_title_monitor.dart';
 
+/// Delay before showing activity for a sustained output stream.
+const _outputActivityDebounce = Duration(milliseconds: 200);
+
+/// Quiet output tolerated when the debounce window expires.
+const _outputActivityQuietWindow = Duration(milliseconds: 100);
+
 /// How long the tab stays active after the latest non-empty PTY output.
-const _outputActivityDuration = Duration(seconds: 1);
+const _outputActivityDuration = Duration(milliseconds: 500);
 
 /// Returns the PATH passed to a shell spawned by a packaged desktop app.
 ///
@@ -119,6 +125,7 @@ class LocalShellSession {
             environment: _shellEnvironment(),
           )
         : Pty.attach(sessionId);
+    _ptyPid = pty.pid;
     _subscriptions.add(pty.output.listen(writeOutput));
     unawaited(pty.exitCode.then((_) => _handlePtyExit()));
 
@@ -174,7 +181,9 @@ class LocalShellSession {
   late final ValueNotifier<maidterm.TerminalProgress?> _progress;
   late final ValueNotifier<bool> _outputActive;
   late final ValueNotifier<bool> _fullScreen;
+  Timer? _outputActivityStartTimer;
   Timer? _outputActivityTimer;
+  DateTime? _lastOutputAt;
 
   /// Visual full-screen state reported by the terminal renderer.
   ValueListenable<bool> get isFullScreen => _fullScreen;
@@ -199,8 +208,8 @@ class LocalShellSession {
 
   /// Whether this session emitted terminal output recently.
   ///
-  /// The value stays true briefly after the latest non-empty PTY chunk so
-  /// bursty output does not make the tab icon flicker.
+  /// A short debounce suppresses the spinner for commands that produce one
+  /// brief output burst, while the expiry keeps sustained activity visible.
   ValueListenable<bool> get isOutputActive => _outputActive;
 
   /// Feeds PTY output into the terminal and records recent output activity.
@@ -208,13 +217,39 @@ class LocalShellSession {
   /// Use this instead of calling [controller.write] for backend output.
   void writeOutput(Uint8List bytes) {
     if (_disposed || bytes.isEmpty) return;
+    _lastOutputAt = DateTime.now();
+    if (_outputActive.value) {
+      _scheduleOutputActivityExpiry();
+    } else {
+      _outputActivityStartTimer ??= Timer(
+        _outputActivityDebounce,
+        _startOutputActivityIfRecent,
+      );
+    }
+    _controller.write(bytes);
+  }
+
+  void _startOutputActivityIfRecent() {
+    _outputActivityStartTimer = null;
+    if (_disposed) return;
+    final lastOutputAt = _lastOutputAt;
+    if (lastOutputAt == null ||
+        DateTime.now().difference(lastOutputAt) > _outputActivityQuietWindow) {
+      _lastOutputAt = null;
+      return;
+    }
     _outputActive.value = true;
+    _scheduleOutputActivityExpiry();
+  }
+
+  void _scheduleOutputActivityExpiry() {
     _outputActivityTimer?.cancel();
     _outputActivityTimer = Timer(_outputActivityDuration, () {
       _outputActivityTimer = null;
-      if (!_disposed) _outputActive.value = false;
+      if (_disposed) return;
+      _outputActive.value = false;
+      _lastOutputAt = null;
     });
-    _controller.write(bytes);
   }
 
   /// Whether a program other than the idle shell is still running in this
@@ -377,9 +412,11 @@ class LocalShellSession {
     _controller.onProgress = null;
     final pid = _ptyPid;
     if (pid != null) _monitor?.untrack(pid);
-    await _pty?.dispose();
+    _outputActivityStartTimer?.cancel();
+    _outputActivityStartTimer = null;
     _outputActivityTimer?.cancel();
     _outputActivityTimer = null;
+    _lastOutputAt = null;
     _displayTitle.dispose();
     _progress.dispose();
     _outputActive.dispose();

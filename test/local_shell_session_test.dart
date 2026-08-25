@@ -135,12 +135,12 @@ void main() {
     expect(exited, isFalse);
   });
 
-  test('recent PTY output marks the session active', () async {
+  test('single PTY output chunk stays below activity debounce', () async {
     final s = session();
     expect(s.isOutputActive.value, isFalse);
 
     s.writeOutput(Uint8List.fromList(utf8.encode('output')));
-    expect(s.isOutputActive.value, isTrue);
+    expect(s.isOutputActive.value, isFalse);
     await s.dispose();
   });
 
