@@ -144,6 +144,15 @@ void main() {
     await s.dispose();
   });
 
+  test('PTY output following terminal input is not activity', () async {
+    final s = session();
+    s.controller.onOutput?.call(Uint8List.fromList(utf8.encode('ls\n')));
+
+    s.writeOutput(Uint8List.fromList(utf8.encode('ls\n')));
+    expect(s.isOutputActive.value, isFalse);
+    await s.dispose();
+  });
+
   test('OSC 9;4 progress reports update and clear session progress', () {
     final s = session();
 

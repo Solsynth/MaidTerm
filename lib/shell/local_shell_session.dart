@@ -19,6 +19,10 @@ const _outputActivityQuietWindow = Duration(milliseconds: 100);
 /// How long the tab stays active after the latest non-empty PTY output.
 const _outputActivityDuration = Duration(milliseconds: 500);
 
+/// Ignore PTY output immediately following keyboard input; shells echo the
+/// submitted line, which is not program activity.
+const _inputEchoSuppression = Duration(milliseconds: 250);
+
 /// Returns the PATH passed to a shell spawned by a packaged desktop app.
 ///
 /// macOS apps launched from Finder do not inherit the user's interactive shell
@@ -171,11 +175,11 @@ class LocalShellSession {
   /// Working directory reported by the shell (OSC 7); empty until reported.
   String _pwd = '';
 
-  /// Directory the session started in, used until OSC 7 arrives.
-  final String _spawnCwd;
-
   /// Shell executable name, shown when nothing better is known.
   final String _fallbackTitle;
+
+  /// Directory the session started in, used until OSC 7 arrives.
+  final String _spawnCwd;
 
   late final ValueNotifier<String> _displayTitle;
   late final ValueNotifier<maidterm.TerminalProgress?> _progress;
@@ -183,6 +187,7 @@ class LocalShellSession {
   late final ValueNotifier<bool> _fullScreen;
   Timer? _outputActivityStartTimer;
   Timer? _outputActivityTimer;
+  DateTime? _lastInputAt;
   DateTime? _lastOutputAt;
 
   /// Visual full-screen state reported by the terminal renderer.
@@ -217,7 +222,14 @@ class LocalShellSession {
   /// Use this instead of calling [controller.write] for backend output.
   void writeOutput(Uint8List bytes) {
     if (_disposed || bytes.isEmpty) return;
-    _lastOutputAt = DateTime.now();
+    final now = DateTime.now();
+    final lastInputAt = _lastInputAt;
+    _controller.write(bytes);
+    if (lastInputAt != null &&
+        now.difference(lastInputAt) <= _inputEchoSuppression) {
+      return;
+    }
+    _lastOutputAt = now;
     if (_outputActive.value) {
       _scheduleOutputActivityExpiry();
     } else {
@@ -226,7 +238,6 @@ class LocalShellSession {
         _startOutputActivityIfRecent,
       );
     }
-    _controller.write(bytes);
   }
 
   void _startOutputActivityIfRecent() {
@@ -274,6 +285,7 @@ class LocalShellSession {
   }
 
   void _writeToPty(Uint8List bytes) {
+    if (bytes.isNotEmpty) _lastInputAt = DateTime.now();
     final pty = _pty;
     if (pty == null) return;
     try {
@@ -416,6 +428,7 @@ class LocalShellSession {
     _outputActivityStartTimer = null;
     _outputActivityTimer?.cancel();
     _outputActivityTimer = null;
+    _lastInputAt = null;
     _lastOutputAt = null;
     _displayTitle.dispose();
     _progress.dispose();
