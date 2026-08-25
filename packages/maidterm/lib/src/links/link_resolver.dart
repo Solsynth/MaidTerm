@@ -78,7 +78,13 @@ final class LinkResolver {
     if (osc8Enabled) matches.addAll(_osc8Detector.matches(lines));
 
     if (textEnabled) {
-      matches.addAll(_textDetector.builtInMatches(lines, cwd: cwd));
+      matches.addAll(
+        _textDetector.builtInMatches(
+          lines,
+          cwd: cwd,
+          includeFilePaths: settings.detectFilePaths,
+        ),
+      );
     }
     if (customEnabled) {
       for (var i = 0; i < settings.rules.length; i++) {

@@ -20,6 +20,7 @@ final class TextLinkDetector {
   Iterable<LinkMatch> builtInMatches(
     List<TerminalLogicalLine> lines, {
     required String? cwd,
+    required bool includeFilePaths,
   }) sync* {
     for (final line in lines) {
       if (line.text.isEmpty ||
@@ -30,9 +31,11 @@ final class TextLinkDetector {
       for (final match in TextLinkPatterns.link.allMatches(line.text)) {
         if (count++ >= TextLinkPatterns.maxMatchesPerLine) break;
         final text = LinkPathResolver.trimTextLink(match.group(0)!);
-        if (text.isEmpty) continue;
         final uri = LinkPathResolver.parseTextUri(text);
-        final file = LinkPathResolver.parseFile(text, cwd);
+        if (!includeFilePaths && uri == null) continue;
+        final file = includeFilePaths
+            ? LinkPathResolver.parseFile(text, cwd)
+            : null;
         if (uri == null && file == null) continue;
         final start = match.start;
         final end = start + text.length;

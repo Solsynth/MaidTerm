@@ -237,11 +237,19 @@ final class LinkSettings {
   /// Called when the user activates a detected link.
   final ValueChanged<ActivatedLink>? onActivate;
 
+  /// Whether built-in text detection also highlights file paths.
+  ///
+  /// When false, only URI-like text links (URLs, email, …) are detected and
+  /// bare filesystem paths stay plain text. OSC 8 hyperlinks are unaffected.
+  /// Defaults to true.
+  final bool detectFilePaths;
+
   const LinkSettings({
     this.types = const {.osc8, .text, .custom},
     this.modifier = .primary,
     this.rules = const [],
     this.onActivate,
+    this.detectFilePaths = true,
   });
 
   /// Whether any link activation can fire.
@@ -249,7 +257,8 @@ final class LinkSettings {
   /// True when a global callback is set or any rule carries its own
   /// [LinkRule.onActivate]. Pointer activation is disabled entirely when
   /// this is false.
-  bool get hasActivation => onActivate != null || rules.any((r) => r.onActivate != null);
+  bool get hasActivation =>
+      onActivate != null || rules.any((r) => r.onActivate != null);
 
   /// Returns the activation callback for [link].
   ///
@@ -272,6 +281,7 @@ final class LinkSettings {
     modifier,
     Object.hashAll(rules),
     onActivate,
+    detectFilePaths,
   );
 
   @override
@@ -281,7 +291,8 @@ final class LinkSettings {
           setEquals(types, other.types) &&
           modifier == other.modifier &&
           listEquals(rules, other.rules) &&
-          onActivate == other.onActivate;
+          onActivate == other.onActivate &&
+          detectFilePaths == other.detectFilePaths;
 }
 
 /// Source category for detected links.

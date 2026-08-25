@@ -46,14 +46,8 @@ void main() {
       ]);
 
       final at = const Position(row: 0, col: 3);
-      expect(
-        snapshot.styleAt(at, highlighted: false),
-        rule.idleStyle,
-      );
-      expect(
-        snapshot.styleAt(at, highlighted: true),
-        rule.highlightedStyle,
-      );
+      expect(snapshot.styleAt(at, highlighted: false), rule.idleStyle);
+      expect(snapshot.styleAt(at, highlighted: true), rule.highlightedStyle);
       // Theme default is used when the position is outside the link.
       expect(
         snapshot.styleAt(const Position(row: 1, col: 0), highlighted: false),
@@ -77,7 +71,9 @@ void main() {
           hoverOnly: true,
           sourceOrder: 0,
           idleStyle: const HyperlinkStyle(underline: .single),
-          highlightedStyle: const HyperlinkStyle(outlineColor: Color(0xFF00FF00)),
+          highlightedStyle: const HyperlinkStyle(
+            outlineColor: Color(0xFF00FF00),
+          ),
         ),
       ]);
 
@@ -100,14 +96,8 @@ void main() {
           end: const Position(row: 0, col: 3),
         ),
       );
-      expect(
-        snapshot.isHighlighted(const Position(row: 0, col: 2)),
-        isTrue,
-      );
-      expect(
-        snapshot.isHighlighted(const Position(row: 0, col: 4)),
-        isFalse,
-      );
+      expect(snapshot.isHighlighted(const Position(row: 0, col: 2)), isTrue);
+      expect(snapshot.isHighlighted(const Position(row: 0, col: 4)), isFalse);
     });
   });
 
@@ -155,11 +145,7 @@ void main() {
       expect(
         LinkSettings(
           rules: [
-            LinkRule.regex(
-              id: 'r',
-              pattern: RegExp('x'),
-              onActivate: (_) {},
-            ),
+            LinkRule.regex(id: 'r', pattern: RegExp('x'), onActivate: (_) {}),
           ],
         ).hasActivation,
         isTrue,
@@ -275,7 +261,6 @@ void main() {
       );
     });
 
-
     test('custom rules carry their styles into resolved matches', () {
       final c = controller();
       c.terminal.write(Uint8List.fromList('meet TODOfix now\n'.codeUnits));
@@ -309,6 +294,25 @@ void main() {
         snapshot.styleAt(const Position(row: 0, col: 5), highlighted: false),
         isNull,
       );
+    });
+    test('detectFilePaths=false keeps URLs but drops file paths', () {
+      final c = controller();
+      c.terminal.write(
+        Uint8List.fromList(
+          'see https://example.com/docs or /tmp/log.txt\n'.codeUnits,
+        ),
+      );
+
+      final snapshot = LinkResolver().buildSnapshot(
+        c.terminal,
+        const LinkSettings(detectFilePaths: false),
+        rows: 40,
+        cols: 120,
+      );
+
+      expect(snapshot.matches.map((match) => match.link.text), [
+        'https://example.com/docs',
+      ]);
     });
   });
 }
