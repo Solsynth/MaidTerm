@@ -24,7 +24,6 @@ class MachineStatusBar extends ConsumerWidget {
     final snapshot = ref
         .watch(systemMetricsProvider(settings.statusBarRefreshSeconds))
         .value;
-    final scheme = Theme.of(context).colorScheme;
     final visibleMetrics = settings.statusBarMetrics
         .where(
           (metric) =>
@@ -38,45 +37,26 @@ class MachineStatusBar extends ConsumerWidget {
     return SizedBox(
       height: _machineStatusBarHeight,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 5, 12, 7),
+        padding: const EdgeInsets.fromLTRB(18, 5, 18, 7),
         child: Tooltip(
           message:
               'Machine status · updates every ${settings.statusBarRefreshSeconds}s',
           waitDuration: const Duration(milliseconds: 500),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest.withValues(alpha: 0.96),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: scheme.outlineVariant.withValues(alpha: 0.72),
-              ),
-            ),
-            child: Row(
-              children: [
-                for (var index = 0; index < visibleMetrics.length; index++) ...[
-                  if (index > 0)
-                    SizedBox(
-                      height: 20,
-                      child: VerticalDivider(
-                        width: 1,
-                        thickness: 1,
-                        color: scheme.outlineVariant.withValues(alpha: 0.54),
-                      ),
-                    ),
-                  Expanded(
-                    child: Center(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: _Metric(
-                          metric: visibleMetrics[index],
-                          snapshot: snapshot ?? const SystemMetricsSnapshot(),
-                        ),
+          child: Row(
+            children: [
+              for (final metric in visibleMetrics)
+                Expanded(
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: _Metric(
+                        metric: metric,
+                        snapshot: snapshot ?? const SystemMetricsSnapshot(),
                       ),
                     ),
                   ),
-                ],
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -95,23 +75,20 @@ class _Metric extends StatelessWidget {
     final spec = switch (metric) {
       StatusMetric.cpu => (
         icon: Symbols.speed,
-        label: 'CPU',
         value: _percentage(snapshot.cpuUsage),
         progress: snapshot.cpuUsage,
         color: const Color(0xFFB9D77A),
       ),
       StatusMetric.memory => (
         icon: Symbols.memory,
-        label: 'MEM',
         value: _memoryValue(snapshot),
         progress: snapshot.memoryUsage,
         color: const Color(0xFF8BC7D8),
       ),
       StatusMetric.network => (
         icon: Symbols.swap_vert,
-        label: 'NET',
         value:
-            '${_rate(snapshot.networkDownloadBytesPerSecond)} ↓  ${_rate(snapshot.networkUploadBytesPerSecond)} ↑',
+            '${_rate(snapshot.networkDownloadBytesPerSecond)}  ${_rate(snapshot.networkUploadBytesPerSecond)}',
         progress: _networkProgress(snapshot),
         color: const Color(0xFFE5A9C9),
       ),
@@ -119,7 +96,6 @@ class _Metric extends StatelessWidget {
         icon: snapshot.batteryCharging
             ? Symbols.battery_charging_full
             : Symbols.battery_full,
-        label: 'BAT',
         value: _percentage(snapshot.batteryLevel),
         progress: snapshot.batteryLevel,
         color: const Color(0xFFE7B66D),
@@ -133,21 +109,28 @@ class _Metric extends StatelessWidget {
       fontWeight: FontWeight.w600,
       color: spec.color,
     );
+    final valueWidget = metric == StatusMetric.network
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '↑ ${_rate(snapshot.networkUploadBytesPerSecond)}',
+                style: mono,
+              ),
+              Text(
+                '↓ ${_rate(snapshot.networkDownloadBytesPerSecond)}',
+                style: mono,
+              ),
+            ],
+          )
+        : Text(spec.value, style: mono);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(spec.icon, size: 17, color: spec.color),
         const SizedBox(width: 7),
-        Text(
-          spec.label,
-          style: textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.0,
-            color: spec.color.withValues(alpha: 0.76),
-          ),
-        ),
-        const SizedBox(width: 7),
-        Text(spec.value, style: mono),
+        valueWidget,
         const SizedBox(width: 9),
         SizedBox(
           width: metric == StatusMetric.network ? 42 : 32,

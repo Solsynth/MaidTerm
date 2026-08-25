@@ -195,12 +195,18 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final clip = find.byKey(const ValueKey('workspace-ground-clip'));
-    // Mirrors MaidKit's rounded content sheet: a vertical tab bar clips the
-    // ground corner it sits beside; a horizontal bar leaves the ground
-    // square against the title bar.
+    // Mirrors MaidKit's rounded content sheet: vertical tab bars round the
+    // pane-side corners along the full edge they sit beside; a horizontal bar
+    // leaves the ground square against the title bar and status bar.
     const cases = {
-      'left': BorderRadius.only(topLeft: Radius.circular(12)),
-      'right': BorderRadius.only(topRight: Radius.circular(12)),
+      'left': BorderRadius.only(
+        topLeft: Radius.circular(12),
+        bottomLeft: Radius.circular(12),
+      ),
+      'right': BorderRadius.only(
+        topRight: Radius.circular(12),
+        bottomRight: Radius.circular(12),
+      ),
       'top': null,
       'bottom': null,
     };
@@ -231,8 +237,16 @@ void main() {
           corner.topRight.x,
           reason: '${entry.key} top-right',
         );
-        expect(border.bottomLeft.x, 0, reason: '${entry.key} bottom-left');
-        expect(border.bottomRight.x, 0, reason: '${entry.key} bottom-right');
+        expect(
+          border.bottomLeft.x,
+          corner.bottomLeft.x,
+          reason: '${entry.key} bottom-left',
+        );
+        expect(
+          border.bottomRight.x,
+          corner.bottomRight.x,
+          reason: '${entry.key} bottom-right',
+        );
       }
     }
   });

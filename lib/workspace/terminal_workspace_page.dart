@@ -77,7 +77,13 @@ class TerminalWorkspacePage extends ConsumerWidget {
                     topLeft: tabBarPosition == TabBarPosition.left
                         ? const Radius.circular(_workspaceCornerRadius)
                         : Radius.zero,
+                    bottomLeft: tabBarPosition == TabBarPosition.left
+                        ? const Radius.circular(_workspaceCornerRadius)
+                        : Radius.zero,
                     topRight: tabBarPosition == TabBarPosition.right
+                        ? const Radius.circular(_workspaceCornerRadius)
+                        : Radius.zero,
+                    bottomRight: tabBarPosition == TabBarPosition.right
                         ? const Radius.circular(_workspaceCornerRadius)
                         : Radius.zero,
                   ),
