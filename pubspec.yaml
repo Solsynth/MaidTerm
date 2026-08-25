@@ -57,6 +57,7 @@ dev_dependencies:
 dmg:
   notary-profile: LittleSheep
   clean-build: false
+  settings: ./dmg/settings.py
 
 flutter_launcher_icons:
   android: false
