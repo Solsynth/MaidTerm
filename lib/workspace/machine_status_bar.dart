@@ -141,17 +141,21 @@ class _Metric extends StatelessWidget {
       fontWeight: FontWeight.w600,
       color: spec.color,
     );
+    final stackedMono = mono?.copyWith(
+      fontSize: (mono.fontSize ?? 12) * 0.88,
+      height: 0.88,
+    );
     final valueWidget = switch (metric) {
       StatusMetric.memory => Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(_memoryValue(snapshot), style: mono),
+          Text(_memoryValue(snapshot), style: stackedMono),
+          const SizedBox(height: 2),
           Text(
             _bytesOrDash(focusedMemoryBytes),
-            style: mono?.copyWith(
+            style: stackedMono?.copyWith(
               color: spec.color.withValues(alpha: 0.68),
-              fontSize: (mono.fontSize ?? 12) - 1,
             ),
           ),
         ],
@@ -160,10 +164,14 @@ class _Metric extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('↑ ${_rate(snapshot.networkUploadBytesPerSecond)}', style: mono),
+          Text(
+            '↑ ${_rate(snapshot.networkUploadBytesPerSecond)}',
+            style: stackedMono,
+          ),
+          const SizedBox(height: 2),
           Text(
             '↓ ${_rate(snapshot.networkDownloadBytesPerSecond)}',
-            style: mono,
+            style: stackedMono,
           ),
         ],
       ),
@@ -300,8 +308,12 @@ String _rate(double? bytes) {
 }
 
 String _bytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) {
+    return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  }
   if (bytes < 1024 * 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} GB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }
