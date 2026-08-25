@@ -1,7 +1,7 @@
 name: maidterm_app
 description: MaidTerm - a local-first desktop terminal for macOS, Windows and Linux.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.13.0
@@ -20,7 +20,7 @@ dependencies:
     git:
       url: https://src.solsynth.dev/SoSYS/Solian.git
       path: packages/island_ui_foundation
-      ref: a936275e6e0e43de3eddbc0ed812308742e2b017
+      ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
   material_ui: ^1.0.1
   flutter_localizations:
     sdk: flutter
@@ -36,7 +36,7 @@ dependencies:
     git:
       url: https://src.solsynth.dev/SoSYS/Solian.git
       path: packages/solsynth_express
-      ref: a936275e6e0e43de3eddbc0ed812308742e2b017
+      ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
   hooks_riverpod: ^3.4.2
   shared_preferences: ^2.5.5
   uuid: ^4.6.0
