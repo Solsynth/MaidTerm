@@ -31,6 +31,9 @@ final class TextLinkDetector {
         if (count++ >= TextLinkPatterns.maxMatchesPerLine) break;
         final text = LinkPathResolver.trimTextLink(match.group(0)!);
         if (text.isEmpty) continue;
+        final uri = LinkPathResolver.parseTextUri(text);
+        final file = LinkPathResolver.parseFile(text, cwd);
+        if (uri == null && file == null) continue;
         final start = match.start;
         final end = start + text.length;
         yield _matchFromOffsets(
@@ -40,8 +43,8 @@ final class TextLinkDetector {
           type: .text,
           priority: -1,
           sourceOrder: -1,
-          uri: LinkPathResolver.parseTextUri(text),
-          file: LinkPathResolver.parseFile(text, cwd),
+          uri: uri,
+          file: file,
         );
       }
     }

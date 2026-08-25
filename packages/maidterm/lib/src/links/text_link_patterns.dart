@@ -15,7 +15,7 @@ abstract final class TextLinkPatterns {
   /// Maximum matches accepted from one logical line for each detector pass.
   static const maxMatchesPerLine = 256;
 
-  /// Pattern for URLs, URIs, POSIX paths, Windows paths, and `.` or `..`.
+  /// Pattern for URLs, URIs, POSIX paths, and Windows paths.
   static final link = RegExp(_source);
 
   static const _urlSchemes =
@@ -23,8 +23,12 @@ abstract final class TextLinkPatterns {
   static const _ipv6Url = r'\[[0-9a-fA-F:]+\](?::[0-9]+)?';
   static const _urlChars = r'[\w\-.~:/?#@!$&*+,;=%\[\]\(\)]';
   static const _pathChars = r'[\w\-.~:/$?#@!&*+;=%]';
-  static const _posixRootedPrefix =
-      r'(?:\.\./|\.\/|(?<!\w)~/|(?:[\w][\w\-.]*/)*(?<!\w)\$[A-Za-z_]\w*/|\.[\w][\w\-.]*/|(?<![\w~/])/(?!/))';
+  static final _posixRootedPrefix = [
+    r'(?:',
+    r'\.\./|\.\/|(?<!\w)~/|(?:[\w][\w\-.]*/)*(?<!\w)\$[A-Za-z_]\w*/|\.[\w][\w\-.]*/',
+    r'|(?<![\w~/])/(?=[\w\-.~:/$?#@!&*+;=%]*\/[\w\-.~:/$?#@!&*+;=%])',
+    r')',
+  ].join();
   static final _posixDottedPath = [
     r'(?=[\w\-.~:/$?#@!&*+;=%]*\.)',
     _pathChars,
@@ -43,7 +47,6 @@ abstract final class TextLinkPatterns {
   ].join();
   static const _windowsBarePath =
       r'(?<![\w$~])[\w][\w\-.]*\\[\w\-.~:\\/$?#@!&*+;=%\\]*\.[\w\-.~:\\/$?#@!&*+;=%\\]+';
-  static const _currentDirectoryPath = r'(?<![\w./$~-])\.{1,2}(?![\w./])';
   static final _source = [
     r'(?:',
     r'(?:',
@@ -66,8 +69,6 @@ abstract final class TextLinkPatterns {
     _windowsRootedPath,
     r'|',
     _windowsBarePath,
-    r'|',
-    _currentDirectoryPath,
     r')',
   ].join();
 }

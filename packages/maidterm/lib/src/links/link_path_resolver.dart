@@ -17,19 +17,24 @@ abstract final class LinkPathResolver {
   }
 
   static bool looksLikePath(String text) {
-    return text == '.' ||
-        text == '..' ||
-        isWindowsDrivePath(text) ||
-        _isWindowsUncPath(text) ||
-        text.startsWith('/') ||
-        text.startsWith('./') ||
-        text.startsWith('../') ||
-        text.startsWith(r'.\') ||
-        text.startsWith(r'..\') ||
-        text.startsWith('~/') ||
-        text.startsWith(r'$') ||
-        text.contains('/') ||
-        text.contains(r'\');
+    final path = _fileUriPath(text) ?? text;
+    final segments = path
+        .split(RegExp(r'[/\\]+'))
+        .where((segment) => segment.isNotEmpty)
+        .length;
+    if (segments < 2) return false;
+
+    return isWindowsDrivePath(path) ||
+        _isWindowsUncPath(path) ||
+        path.startsWith('/') ||
+        path.startsWith('./') ||
+        path.startsWith('../') ||
+        path.startsWith(r'.\') ||
+        path.startsWith(r'..\') ||
+        path.startsWith('~/') ||
+        path.startsWith(r'$') ||
+        path.contains('/') ||
+        path.contains(r'\');
   }
 
   /// Returns parsed file data when [text] looks like a file path.

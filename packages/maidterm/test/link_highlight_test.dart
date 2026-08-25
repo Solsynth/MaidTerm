@@ -8,6 +8,7 @@ import 'package:maidterm/src/foundation/terminal_theme.dart'
     show HyperlinkStyle;
 import 'package:maidterm/src/links/link_match.dart';
 import 'package:maidterm/src/links/link_resolver.dart';
+import 'package:maidterm/src/links/link_path_resolver.dart';
 import 'package:maidterm/src/links/link_settings.dart';
 import 'package:maidterm/src/links/link_snapshot.dart';
 import 'package:maidterm/src/widgets/terminal_controller_impl.dart';
@@ -212,11 +213,33 @@ void main() {
       expect(pathMatch.link.file!.resolvedPath, '/home/user/lib/main.dart');
     });
 
-    test('custom rules carry their styles into resolved matches', () {
+    test('requires two path segments before highlighting a file path', () {
       final c = controller();
       c.terminal.write(
-        Uint8List.fromList('meet TODOfix now\n'.codeUnits),
+        Uint8List.fromList(
+          'build output /tmp lib/main.dart report.txt\n/tmp/log.txt\n'
+              .codeUnits,
+        ),
       );
+
+      final snapshot = LinkResolver().buildSnapshot(
+        c.terminal,
+        const LinkSettings(),
+        rows: 40,
+        cols: 120,
+      );
+
+      expect(snapshot.matches.map((match) => match.link.text), [
+        'lib/main.dart',
+        '/tmp/log.txt',
+      ]);
+      expect(LinkPathResolver.parseFile('/tmp', null), isNull);
+      expect(LinkPathResolver.parseFile('/tmp/log.txt', null), isNotNull);
+    });
+
+    test('custom rules carry their styles into resolved matches', () {
+      final c = controller();
+      c.terminal.write(Uint8List.fromList('meet TODOfix now\n'.codeUnits));
 
       final rule = LinkRule.regex(
         id: 'todo',
