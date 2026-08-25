@@ -790,11 +790,12 @@ void main() {
     final chromeColor = (chrome.decoration! as BoxDecoration).color!;
     expect(chromeColor.a, lessThan(1.0));
 
-    // The tab bar stays solid: the image never leaks into chrome.
+    // The tab bar paints transparently so the frame's uniform backdrop
+    // shows through; the pane-layout image never leaks into it.
     final tabBar = tester.widget<Material>(
       find.byKey(const ValueKey('workspace-tab-bar')),
     );
-    expect(tabBar.color!.a, 1.0);
+    expect(tabBar.color, Colors.transparent);
   });
 
   testWidgets('split panes share one background image', (tester) async {

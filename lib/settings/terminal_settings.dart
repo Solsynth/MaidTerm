@@ -29,6 +29,8 @@ class TerminalSettings {
     this.lightTheme = TerminalColorSchemes.defaultLightScheme,
     this.darkTheme = TerminalColorSchemes.defaultScheme,
     this.transparentBackground = false,
+    this.windowTransparency = 0.0,
+    this.paneBackgroundOpacity = 1.0,
     this.themeMode = ThemeMode.dark,
     this.seedColor = const Color(0xFF0F766E),
     this.tabBarPosition = TabBarPosition.top,
@@ -66,6 +68,12 @@ class TerminalSettings {
 
   /// Transparent terminal background (lets the window surface show through).
   final bool transparentBackground;
+
+  /// Window transparency level (0 = opaque, 1 = fully see-through).
+  final double windowTransparency;
+
+  /// Opacity of the pane card background (1 = solid, 0 = fully see-through).
+  final double paneBackgroundOpacity;
 
   /// App theme mode: system, light or dark.
   final ThemeMode themeMode;
@@ -106,6 +114,8 @@ class TerminalSettings {
     TerminalColorScheme? lightTheme,
     TerminalColorScheme? darkTheme,
     bool? transparentBackground,
+    double? windowTransparency,
+    double? paneBackgroundOpacity,
     ThemeMode? themeMode,
     Color? seedColor,
     TabBarPosition? tabBarPosition,
@@ -125,7 +135,9 @@ class TerminalSettings {
     fontFamily: fontFamily ?? this.fontFamily,
     lightTheme: lightTheme ?? this.lightTheme,
     darkTheme: darkTheme ?? this.darkTheme,
+    windowTransparency: windowTransparency ?? this.windowTransparency,
     transparentBackground: transparentBackground ?? this.transparentBackground,
+    paneBackgroundOpacity: paneBackgroundOpacity ?? this.paneBackgroundOpacity,
     themeMode: themeMode ?? this.themeMode,
     seedColor: seedColor ?? this.seedColor,
     tabBarPosition: tabBarPosition ?? this.tabBarPosition,
@@ -156,6 +168,8 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
   static const _fontFamilyKey = 'terminal.fontFamily';
   static const _lightThemeKey = 'terminal.lightTheme';
   static const _tabBarWidthKey = 'terminal.tabBarWidth';
+  static const _windowTransparencyKey = 'app.windowTransparency';
+  static const _paneBackgroundOpacityKey = 'app.paneBackgroundOpacity';
   static const _darkThemeKey = 'terminal.darkTheme';
   static const _transparentKey = 'terminal.transparentBackground';
   static const _themeModeKey = 'app.themeMode';
@@ -196,6 +210,9 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
           _decodeTheme(prefs.getString(_darkThemeKey)) ??
           TerminalColorSchemes.defaultScheme,
       transparentBackground: prefs.getBool(_transparentKey) ?? false,
+      paneBackgroundOpacity:
+          prefs.getDouble(_paneBackgroundOpacityKey)?.clamp(0.0, 1.0) ??
+          1.0,
       themeMode: switch (prefs.getString(_themeModeKey)) {
         'system' => ThemeMode.system,
         'light' => ThemeMode.light,
@@ -294,6 +311,20 @@ class TerminalSettingsNotifier extends AsyncNotifier<TerminalSettings> {
     await _update(state.value!.copyWith(transparentBackground: value));
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_transparentKey, value);
+  }
+
+  Future<void> setWindowTransparency(double value) async {
+    final clamped = value.clamp(0.0, 1.0);
+    await _update(state.value!.copyWith(windowTransparency: clamped));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_windowTransparencyKey, clamped);
+  }
+
+  Future<void> setPaneBackgroundOpacity(double value) async {
+    final clamped = value.clamp(0.0, 1.0);
+    await _update(state.value!.copyWith(paneBackgroundOpacity: clamped));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_paneBackgroundOpacityKey, clamped);
   }
 
   Future<void> setThemeMode(ThemeMode value) async {

@@ -1,11 +1,17 @@
 import Cocoa
 import FlutterMacOS
 import desktop_multi_window
+
 class MainFlutterWindow: NSWindow {
   private var terminalMenuTarget: TerminalMenuTarget?
 
   override func awakeFromNib() {
+    // Always transparent — the Flutter tree paints its own backgrounds.
+    self.isOpaque = false
+    self.backgroundColor = .clear
+
     let flutterViewController = FlutterViewController()
+    flutterViewController.backgroundColor = .clear
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
@@ -17,11 +23,11 @@ class MainFlutterWindow: NSWindow {
 
     super.awakeFromNib()
 
-    let channel = FlutterMethodChannel(
+    let menuChannel = FlutterMethodChannel(
       name: "maidterm/menu",
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
-    terminalMenuTarget = TerminalMenuTarget(channel: channel)
+    terminalMenuTarget = TerminalMenuTarget(channel: menuChannel)
     DispatchQueue.main.async { [weak self] in
       self?.installTerminalMenu()
     }

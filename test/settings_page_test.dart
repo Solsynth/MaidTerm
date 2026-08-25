@@ -17,12 +17,6 @@ import 'package:maidterm_app/settings/settings_page.dart';
 import 'package:maidterm_app/settings/terminal_fonts.dart';
 import 'package:maidterm_app/settings/terminal_settings.dart';
 
-/// Loads the real translation JSON files synchronously from disk.
-///
-/// easy_localization's default [RootBundleAssetLoader] goes through the
-/// platform messenger, which does not progress in the fake-async zone of a
-/// widget test once a previous test's EasyLocalization tree has been torn
-/// down. Reading the files directly keeps the tests hermetic and real.
 class _TestAssetLoader extends AssetLoader {
   final String basePath;
   const _TestAssetLoader(this.basePath);
@@ -88,14 +82,12 @@ void main() {
     expect(find.text('settingsBackgroundChoose'.tr()), findsOneWidget);
     expect(find.text('settingsBackgroundNoImage'.tr()), findsOneWidget);
 
-    // Values loaded from prefs.
     final container = ProviderScope.containerOf(
       tester.element(find.byType(SettingsPage)),
     );
     expect(container.read(terminalSettingsProvider).value?.fontSize, 16.0);
     expect(container.read(terminalFontFamilyProvider), 'Fira Code');
 
-    // Toggle blink persists.
     await tester.scrollUntilVisible(
       find.text('settingsCursorBlink'.tr()),
       200,
@@ -174,6 +166,12 @@ void main() {
         'terminal.statusBarMetrics',
       ),
       contains('battery'),
+    );
+    expect(
+      (await SharedPreferences.getInstance()).getInt(
+        'terminal.statusBarRefreshSeconds',
+      ),
+      null,
     );
     expect(
       (await SharedPreferences.getInstance()).getInt(
@@ -281,7 +279,6 @@ void main() {
     );
     final hexField = find.byKey(const ValueKey('accent-color-hex'));
 
-    // Invalid hex shows an error and leaves the color unchanged.
     await tester.enterText(hexField, '#ZZZZZZ');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
@@ -291,7 +288,6 @@ void main() {
       const Color(0xFF0F766E),
     );
 
-    // Valid hex applies and persists to preferences.
     await tester.enterText(hexField, '#6750A4');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
@@ -338,7 +334,6 @@ void main() {
     await tester.pumpWidget(buildSettings(const SettingsPage()));
     await tester.pumpAndSettle();
 
-    // The dropdown starts on the device locale (en-US).
     expect(find.text('English'), findsOneWidget);
     expect(find.text('settingsTitle'.tr()), findsOneWidget);
 
@@ -347,11 +342,58 @@ void main() {
     await tester.tap(find.text('简体中文').last);
     await tester.pumpAndSettle();
 
-    // The page re-renders in Chinese; the raw key is gone.
     expect(find.text('设置'), findsOneWidget);
     expect(find.text('settingsTitle'), findsNothing);
 
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('locale'), 'zh_CN');
+  });
+
+  testWidgets('window transparency persists via notifier', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(buildSettings(const SettingsPage()));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsPage)),
+    );
+
+    await container
+        .read(terminalSettingsProvider.notifier)
+        .setWindowTransparency(0.5);
+
+    final settings = container.read(terminalSettingsProvider).value!;
+    expect(settings.windowTransparency, 0.5);
+    expect(
+      (await SharedPreferences.getInstance()).getDouble(
+        'app.windowTransparency',
+      ),
+      0.5,
+    );
+  });
+
+  testWidgets('pane background opacity persists via notifier', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(buildSettings(const SettingsPage()));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsPage)),
+    );
+
+    await container
+        .read(terminalSettingsProvider.notifier)
+        .setPaneBackgroundOpacity(0.7);
+
+    final settings = container.read(terminalSettingsProvider).value!;
+    expect(settings.paneBackgroundOpacity, 0.7);
+    expect(
+      (await SharedPreferences.getInstance()).getDouble(
+        'app.paneBackgroundOpacity',
+      ),
+      0.7,
+    );
   });
 }

@@ -11,9 +11,11 @@ import 'package:window_manager/window_manager.dart';
 /// this shared foundation instead of creating local colour schemes or chrome.
 ///
 /// Terminals are dark tools: MaidTerm ships dark-only, and the terminal
-/// palette derives from the same surface colors so the window chrome and
-/// the terminal canvas agree.
-ThemeData createMaidTermTheme(Brightness brightness, {Color? seedColor}) {
+ThemeData createMaidTermTheme(
+  Brightness brightness, {
+  Color? seedColor,
+  double windowTransparency = 0.0,
+}) {
   final colorScheme = ColorScheme.fromSeed(
     seedColor: seedColor ?? const Color(0xFF0F766E),
     brightness: brightness,
@@ -23,6 +25,9 @@ ThemeData createMaidTermTheme(Brightness brightness, {Color? seedColor}) {
     useMaterial3: true,
     colorScheme: colorScheme,
     brightness: brightness,
+    scaffoldBackgroundColor: colorScheme.surface.withValues(
+      alpha: 1.0 - windowTransparency,
+    ),
     fontFamily: 'IBM Plex Sans',
     appBarTheme: const AppBarTheme(centerTitle: false),
     inputDecorationTheme: InputDecorationThemeData(
@@ -45,6 +50,7 @@ class MaidTermWindowScaffold extends StatelessWidget {
     required this.child,
     this.title,
     this.menuButton,
+    this.windowTransparency = 0.0,
   });
 
   final Widget child;
@@ -54,11 +60,18 @@ class MaidTermWindowScaffold extends StatelessWidget {
   /// title text is centered instead of left-aligned.
   final Widget? menuButton;
 
+  /// Window transparency level (0 = opaque, 1 = fully see-through).
+  /// The frame surface fades with it so the desktop shows through.
+  final double windowTransparency;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return flutter.Theme(
-      data: _createWindowFrameTheme(Theme.of(context)),
+      data: _createWindowFrameTheme(
+        Theme.of(context),
+        windowTransparency: windowTransparency,
+      ),
       child: flutter.Localizations.override(
         context: context,
         delegates: const [
@@ -69,17 +82,40 @@ class MaidTermWindowScaffold extends StatelessWidget {
           flutter_localizations.GlobalWidgetsLocalizations.delegate,
         ],
         child: flutter.Material(
-          // Keep the frame's existing surface painting while providing the
-          // Flutter SDK Material ancestor required by legacy controls.
-          type: flutter.MaterialType.transparency,
-          child: DesktopWindowFrame(
-            onClose: windowManager.destroy,
-            isDesktopPlatform: DesktopWindowFrame.isPlatformDesktop,
-            // NOTE: island's macOS title bar renders only the title and
-            // ignores additionalTitleBarActions; app actions live in the
-            // toolbar row inside the workspace instead.
-            title: _buildTitle(theme),
-            child: child,
+          color: Colors.transparent,
+          child: Theme(
+            data: ThemeData(
+              scaffoldBackgroundColor: theme.colorScheme.surface.withValues(
+                alpha: 1.0 - windowTransparency,
+              ),
+              colorScheme:
+                  ColorScheme.fromSeed(
+                    seedColor: theme.colorScheme.primary,
+                    brightness: theme.colorScheme.brightness,
+                  ).copyWith(
+                    surface: theme.colorScheme.surface.withValues(
+                      alpha: 1.0 - windowTransparency,
+                    ),
+                    // The frame paints the single backdrop tone; keep every
+                    // surface variant identical so titlebar, ground, tab bar
+                    // and status bar render one uniform color.
+                    surfaceContainer: theme.colorScheme.surface.withValues(
+                      alpha: 1.0 - windowTransparency,
+                    ),
+                    onSurface: theme.colorScheme.onSurface,
+                    onSurfaceVariant: theme.colorScheme.onSurfaceVariant,
+                    outline: theme.colorScheme.outline,
+                  ),
+            ),
+            child: DesktopWindowFrame(
+              onClose: windowManager.destroy,
+              isDesktopPlatform: DesktopWindowFrame.isPlatformDesktop,
+              // NOTE: island's macOS title bar renders only the title and
+              // ignores additionalTitleBarActions; app actions live in the
+              // toolbar row inside the workspace instead.
+              title: _buildTitle(theme),
+              child: child,
+            ),
           ),
         ),
       ),
@@ -91,10 +127,7 @@ class MaidTermWindowScaffold extends StatelessWidget {
   /// edge. The full-width layout is required because island's macOS frame
   /// centers whatever widget is passed as the title.
   Widget _buildTitle(ThemeData theme) {
-    final text = Text(
-      title ?? 'MaidTerm',
-      style: theme.textTheme.labelLarge,
-    );
+    final text = Text(title ?? 'MaidTerm', style: theme.textTheme.labelLarge);
     final button = menuButton;
     if (button == null) return text;
     return SizedBox(
@@ -121,7 +154,11 @@ class MaidTermWindowScaffold extends StatelessWidget {
 
 /// Supplies the Flutter Material theme consumed by legacy widgets inside
 /// Island's window frame, derived from the modern app theme.
-flutter.ThemeData _createWindowFrameTheme(ThemeData theme) {
+flutter.ThemeData _createWindowFrameTheme(
+  ThemeData theme, {
+  double windowTransparency = 0.0,
+}) {
+  final alpha = 1.0 - windowTransparency;
   final colors = theme.colorScheme;
   final colorScheme =
       flutter.ColorScheme.fromSeed(
@@ -130,9 +167,9 @@ flutter.ThemeData _createWindowFrameTheme(ThemeData theme) {
       ).copyWith(
         primary: colors.primary,
         onPrimary: colors.onPrimary,
-        surface: colors.surface,
+        surface: colors.surface.withValues(alpha: alpha),
         onSurface: colors.onSurface,
-        surfaceContainer: colors.surfaceContainer,
+        surfaceContainer: colors.surfaceContainer.withValues(alpha: alpha),
         onSurfaceVariant: colors.onSurfaceVariant,
         outline: colors.outline,
       );

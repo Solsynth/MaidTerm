@@ -142,13 +142,24 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
     final settings = ref.watch(terminalSettingsProvider).value;
     final themeMode = settings?.themeMode ?? ThemeMode.dark;
     final seedColor = settings?.seedColor ?? const Color(0xFF0F766E);
+    final windowTransparency = settings?.windowTransparency ?? 0.0;
+    final windowTransparent = windowTransparency > 0;
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
       title: 'title'.tr(),
       debugShowCheckedModeBanner: false,
-      theme: createMaidTermTheme(Brightness.light, seedColor: seedColor),
-      darkTheme: createMaidTermTheme(Brightness.dark, seedColor: seedColor),
+      color: windowTransparent ? Colors.transparent : null,
+      theme: createMaidTermTheme(
+        Brightness.light,
+        seedColor: seedColor,
+        windowTransparency: windowTransparency,
+      ),
+      darkTheme: createMaidTermTheme(
+        Brightness.dark,
+        seedColor: seedColor,
+        windowTransparency: windowTransparency,
+      ),
       themeMode: themeMode,
       localizationsDelegates: [
         ...context.localizationDelegates,
@@ -276,6 +287,7 @@ class _FramePage extends ConsumerWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: settingsOpen,
       builder: (context, settingsOpen, _) => MaidTermWindowScaffold(
+        windowTransparency: settings?.windowTransparency ?? 0.0,
         title: settingsOpen ? 'settingsTitle'.tr() : 'title'.tr(),
         menuButton: showMenu
             ? _TitleBarMenuButton(

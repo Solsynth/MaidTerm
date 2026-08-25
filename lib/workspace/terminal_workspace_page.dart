@@ -190,7 +190,7 @@ class _WorkspaceGround extends ConsumerWidget {
     return DecoratedBox(
       key: const ValueKey('workspace-ground'),
       decoration: BoxDecoration(
-        color: scheme.surface,
+        color: Colors.transparent,
         // One image spans the whole pane layout: split panes share it
         // instead of each rendering their own copy.
         image: hasBackgroundImage
@@ -444,14 +444,25 @@ class _TerminalPaneView extends ConsumerWidget {
         ref.watch(maidTermBackgroundImageEnabledProvider).asData?.value ?? true;
     final hasBackgroundImage =
         backgroundImageEnabled && backgroundImage != null;
+    final windowTransparency = settings?.windowTransparency ?? 0.0;
+    final windowTransparent = windowTransparency > 0;
+    final paneBackgroundOpacity = settings?.paneBackgroundOpacity ?? 1.0;
     // An enabled image is the terminal backdrop; the surface stays
-    // transparent so the shared pane-layout image shows through.
+    // transparent so the shared pane-layout image shows through. A
+    // transparent window makes every surface see-through so the desktop
+    // itself shows behind the terminal.
     final transparent =
-        (settings?.transparentBackground ?? false) || hasBackgroundImage;
+        (settings?.transparentBackground ?? false) ||
+        hasBackgroundImage ||
+        windowTransparent;
     final terminal = selected == null
         ? ColoredBox(
             key: const ValueKey('terminal-pane-backdrop'),
-            color: transparent ? Colors.transparent : terminalScheme.background,
+            color: transparent
+                ? Colors.transparent
+                : terminalScheme.background.withValues(
+                    alpha: 1.0 - windowTransparency,
+                  ),
           )
         : ValueListenableBuilder<bool>(
             valueListenable: selected.session.isFullScreen,
@@ -490,11 +501,19 @@ class _TerminalPaneView extends ConsumerWidget {
           );
 
     final scheme = Theme.of(context).colorScheme;
-    final paneColor = hasBackgroundImage
-        ? scheme.surfaceContainerHigh.withValues(alpha: 0.64)
-        : scheme.surfaceContainerHigh;
     final paneBorderWidth = 1 / MediaQuery.devicePixelRatioOf(context);
     // A shadow over a transparent terminal darkens the shared image beneath.
+    final paneAlpha =
+        paneBackgroundOpacity * (1.0 - windowTransparency * 0.64);
+    final paneColor = hasBackgroundImage
+        ? scheme.surfaceContainerHigh.withValues(alpha: 0.64)
+        : windowTransparent
+            ? scheme.surfaceContainerHigh.withValues(alpha: paneAlpha)
+            : paneBackgroundOpacity < 1.0
+                ? scheme.surfaceContainerHigh.withValues(
+                    alpha: paneBackgroundOpacity,
+                  )
+                : scheme.surfaceContainerHigh;
     final showPaneShadow = focused && !transparent;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -840,7 +859,7 @@ class _WorkspaceTabBar extends ConsumerWidget {
 
     return Material(
       key: const ValueKey('workspace-tab-bar'),
-      color: scheme.surfaceContainer,
+      color: Colors.transparent,
       child: SizedBox(
         width: _vertical ? (width ?? _workspaceTabBarWidth) : null,
         height: _vertical ? null : height,

@@ -150,6 +150,56 @@ class SettingsPage extends ConsumerWidget {
                               .read(terminalSettingsProvider.notifier)
                               .setTransparentBackground(v),
                         ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(child: Text('settingsWindowTransparency'.tr())),
+                                Text(
+                                  '${(data.windowTransparency * 100).round()}%',
+                                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    fontFamily: 'IBM Plex Mono',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Slider(
+                              padding: EdgeInsets.zero,
+                              value: data.windowTransparency,
+                              min: 0,
+                              max: 1,
+                              divisions: 100,
+                              label: '${(data.windowTransparency * 100).round()}%',
+                              onChanged: (v) => ref
+                                  .read(terminalSettingsProvider.notifier)
+                                  .setWindowTransparency(v),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(child: Text('settingsPaneBackgroundOpacity'.tr())),
+                                Text(
+                                  '${(data.paneBackgroundOpacity * 100).round()}%',
+                                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    fontFamily: 'IBM Plex Mono',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Slider(
+                              padding: EdgeInsets.zero,
+                              value: data.paneBackgroundOpacity,
+                              min: 0,
+                              max: 1,
+                              divisions: 100,
+                              label: '${(data.paneBackgroundOpacity * 100).round()}%',
+                              onChanged: (v) => ref
+                                  .read(terminalSettingsProvider.notifier)
+                                  .setPaneBackgroundOpacity(v),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -425,6 +475,7 @@ class _StatusBarSettings extends ConsumerWidget {
           ],
         ),
         Slider(
+          padding: EdgeInsets.zero,
           value: settings.statusBarRefreshSeconds.toDouble(),
           min: 1,
           max: 10,
@@ -445,6 +496,7 @@ class _StatusBarSettings extends ConsumerWidget {
           ],
         ),
         Slider(
+          padding: EdgeInsets.zero,
           value: settings.statusBarHistoryMinutes.toDouble(),
           min: 1,
           max: 30,
@@ -1104,6 +1156,7 @@ class _ColorChannelSlider extends StatelessWidget {
         SizedBox(width: 20, child: Text(label)),
         Expanded(
           child: Slider(
+            padding: EdgeInsets.zero,
             value: value.toDouble(),
             min: 0,
             max: 255,
