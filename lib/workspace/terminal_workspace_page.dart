@@ -1018,37 +1018,44 @@ class _PaneTabContent extends StatelessWidget {
               ? MainAxisSize.max
               : MainAxisSize.min,
           children: [
-            ValueListenableBuilder<maidterm.TerminalProgress?>(
-              valueListenable: tab.session.progress,
-              builder: (context, progress, _) {
-                final color = switch (progress?.state) {
-                  .error => scheme.error,
-                  .paused => scheme.tertiary,
-                  _ => selected ? scheme.primary : scheme.onSurface,
-                };
-                if (progress == null ||
-                    progress.state == .remove ||
-                    progress.state == .paused) {
-                  return Icon(
-                    progress?.state == .paused
-                        ? Symbols.pause_circle
-                        : Symbols.terminal,
-                    size: 16,
-                    color: color,
-                  );
-                }
-                return SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    value: progress.value == null
-                        ? null
-                        : progress.value! / 100,
-                    color: color,
+            ValueListenableBuilder<bool>(
+              valueListenable: tab.session.isOutputActive,
+              builder: (context, outputActive, _) =>
+                  ValueListenableBuilder<maidterm.TerminalProgress?>(
+                    valueListenable: tab.session.progress,
+                    builder: (context, progress, _) {
+                      final color = switch (progress?.state) {
+                        .error => scheme.error,
+                        .paused => scheme.tertiary,
+                        _ => selected ? scheme.primary : scheme.onSurface,
+                      };
+                      if ((progress == null ||
+                              progress.state == .remove ||
+                              progress.state == .paused) &&
+                          !outputActive) {
+                        return Icon(
+                          progress?.state == .paused
+                              ? Symbols.pause_circle
+                              : Symbols.terminal,
+                          size: 16,
+                          color: color,
+                        );
+                      }
+                      return SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          value: outputActive
+                              ? null
+                              : progress?.value == null
+                              ? null
+                              : progress!.value! / 100,
+                          color: color,
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
             ),
             if (!compact) ...[
               const SizedBox(width: 6),

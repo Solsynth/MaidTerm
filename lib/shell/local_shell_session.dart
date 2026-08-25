@@ -10,6 +10,9 @@ import 'package:window_manager/window_manager.dart';
 import 'package:maidterm_app/notifications/app_notifications.dart';
 import 'package:maidterm_app/shell/process_title_monitor.dart';
 
+/// How long the tab stays active after the latest non-empty PTY output.
+const _outputActivityDuration = Duration(seconds: 1);
+
 /// Returns the PATH passed to a shell spawned by a packaged desktop app.
 ///
 /// macOS apps launched from Finder do not inherit the user's interactive shell
@@ -94,6 +97,7 @@ class LocalShellSession {
       ),
     );
     _displayTitle = ValueNotifier<String>(_fallbackTitle);
+    _outputActive = ValueNotifier<bool>(false);
     _progress = ValueNotifier<maidterm.TerminalProgress?>(null);
     _fullScreen = ValueNotifier<bool>(false);
     _controller.onBell = _handleBell;
@@ -115,9 +119,9 @@ class LocalShellSession {
             environment: _shellEnvironment(),
           )
         : Pty.attach(sessionId);
-    _ptyPid = pty.pid;
-    _subscriptions.add(pty.output.listen(_controller.write));
+    _subscriptions.add(pty.output.listen(writeOutput));
     unawaited(pty.exitCode.then((_) => _handlePtyExit()));
+
     final monitor = _monitor;
     if (monitor != null) {
       monitor.addListener(_refreshTitle);
@@ -168,7 +172,9 @@ class LocalShellSession {
 
   late final ValueNotifier<String> _displayTitle;
   late final ValueNotifier<maidterm.TerminalProgress?> _progress;
+  late final ValueNotifier<bool> _outputActive;
   late final ValueNotifier<bool> _fullScreen;
+  Timer? _outputActivityTimer;
 
   /// Visual full-screen state reported by the terminal renderer.
   ValueListenable<bool> get isFullScreen => _fullScreen;
@@ -190,6 +196,26 @@ class LocalShellSession {
 
   /// Live OSC 9;4 progress reported by the running program.
   ValueListenable<maidterm.TerminalProgress?> get progress => _progress;
+
+  /// Whether this session emitted terminal output recently.
+  ///
+  /// The value stays true briefly after the latest non-empty PTY chunk so
+  /// bursty output does not make the tab icon flicker.
+  ValueListenable<bool> get isOutputActive => _outputActive;
+
+  /// Feeds PTY output into the terminal and records recent output activity.
+  ///
+  /// Use this instead of calling [controller.write] for backend output.
+  void writeOutput(Uint8List bytes) {
+    if (_disposed || bytes.isEmpty) return;
+    _outputActive.value = true;
+    _outputActivityTimer?.cancel();
+    _outputActivityTimer = Timer(_outputActivityDuration, () {
+      _outputActivityTimer = null;
+      if (!_disposed) _outputActive.value = false;
+    });
+    _controller.write(bytes);
+  }
 
   /// Whether a program other than the idle shell is still running in this
   /// session, per the latest process-table poll.
@@ -352,8 +378,11 @@ class LocalShellSession {
     final pid = _ptyPid;
     if (pid != null) _monitor?.untrack(pid);
     await _pty?.dispose();
+    _outputActivityTimer?.cancel();
+    _outputActivityTimer = null;
     _displayTitle.dispose();
     _progress.dispose();
+    _outputActive.dispose();
     _fullScreen.dispose();
     _controller.dispose();
   }

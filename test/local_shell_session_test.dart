@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maidterm_app/shell/local_shell_session.dart';
@@ -133,6 +134,16 @@ void main() {
     await s.dispose();
     expect(exited, isFalse);
   });
+
+  test('recent PTY output marks the session active', () async {
+    final s = session();
+    expect(s.isOutputActive.value, isFalse);
+
+    s.writeOutput(Uint8List.fromList(utf8.encode('output')));
+    expect(s.isOutputActive.value, isTrue);
+    await s.dispose();
+  });
+
   test('OSC 9;4 progress reports update and clear session progress', () {
     final s = session();
 

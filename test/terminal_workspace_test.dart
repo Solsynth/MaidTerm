@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
 import 'package:island_ui_foundation/island_ui_foundation.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -62,6 +64,30 @@ void main() {
     );
     expect(terminal.theme?.fontFamily, 'Fira Code');
     expect(terminal.theme?.fontSize, 18.0);
+  });
+
+  testWidgets('shows output activity in the terminal tab icon', (tester) async {
+    await tester.pumpWidget(buildWorkspace());
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
+    final session = container
+        .read(terminalWorkspaceProvider)
+        .selectedTab!
+        .focusedPane!
+        .tab
+        .session;
+
+    expect(find.byIcon(Symbols.terminal), findsOneWidget);
+    session.writeOutput(Uint8List.fromList(utf8.encode('output')));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byIcon(Symbols.terminal), findsOneWidget);
   });
 
   testWidgets('keeps margins until a TUI paints an almost full grid', (
@@ -187,12 +213,19 @@ void main() {
         expect(clip, findsNothing, reason: '${entry.key} tab bar');
       } else {
         expect(clip, findsOneWidget, reason: '${entry.key} tab bar');
-        final border = tester.widget<ClipRRect>(clip).borderRadius as BorderRadius;
+        final border =
+            tester.widget<ClipRRect>(clip).borderRadius as BorderRadius;
         // BorderRadius does not compare by value; inspect each corner.
-        expect(border.topLeft.x, corner.topLeft.x,
-            reason: '${entry.key} top-left');
-        expect(border.topRight.x, corner.topRight.x,
-            reason: '${entry.key} top-right');
+        expect(
+          border.topLeft.x,
+          corner.topLeft.x,
+          reason: '${entry.key} top-left',
+        );
+        expect(
+          border.topRight.x,
+          corner.topRight.x,
+          reason: '${entry.key} top-right',
+        );
         expect(border.bottomLeft.x, 0, reason: '${entry.key} bottom-left');
         expect(border.bottomRight.x, 0, reason: '${entry.key} bottom-right');
       }
@@ -586,12 +619,73 @@ void main() {
 
   // 1x1 transparent PNG: a real decodable file for the image provider.
   const transparentPng = <int>[
-    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-    0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-    0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x62, 0x00, 0x01, 0x00, 0x00,
-    0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-    0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    0x89,
+    0x50,
+    0x4E,
+    0x47,
+    0x0D,
+    0x0A,
+    0x1A,
+    0x0A,
+    0x00,
+    0x00,
+    0x00,
+    0x0D,
+    0x49,
+    0x48,
+    0x44,
+    0x52,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x08,
+    0x06,
+    0x00,
+    0x00,
+    0x00,
+    0x1F,
+    0x15,
+    0xC4,
+    0x89,
+    0x00,
+    0x00,
+    0x00,
+    0x0D,
+    0x49,
+    0x44,
+    0x41,
+    0x54,
+    0x78,
+    0x9C,
+    0x62,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    0x05,
+    0x00,
+    0x01,
+    0x0D,
+    0x0A,
+    0x2D,
+    0xB4,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x49,
+    0x45,
+    0x4E,
+    0x44,
+    0xAE,
+    0x42,
+    0x60,
+    0x82,
   ];
 
   Widget buildWorkspaceWithImage(File imageFile) {
@@ -608,7 +702,9 @@ void main() {
               autoStart: false,
             ),
           ),
-          maidTermBackgroundImageProvider.overrideWith((ref) async => imageFile),
+          maidTermBackgroundImageProvider.overrideWith(
+            (ref) async => imageFile,
+          ),
         ],
         child: const MaterialApp(home: TerminalWorkspacePage()),
       ),
@@ -627,9 +723,7 @@ void main() {
   testWidgets('background image fills the pane layout once, not chrome', (
     tester,
   ) async {
-    final imageFile = File(
-      '${Directory.systemTemp.path}/maidterm_bg_test.png',
-    );
+    final imageFile = File('${Directory.systemTemp.path}/maidterm_bg_test.png');
     await tester.binding.setSurfaceSize(const Size(1100, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
