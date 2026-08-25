@@ -367,11 +367,9 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     final index = state.tabs.indexWhere((tab) => tab.id == tabId);
     if (index < 0) return;
     final group = state.tabs[index];
-    if (disposeSessions) {
-      for (final pane in group.panes.values) {
-        unawaited(pane.tab.session.terminate());
-      }
-    }
+    final sessions = disposeSessions
+        ? [for (final pane in group.panes.values) pane.tab.session]
+        : const <LocalShellSession>[];
     final nextTabs = [...state.tabs]..removeAt(index);
     final nextSelected = nextTabs.isEmpty
         ? null
@@ -379,6 +377,11 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
         ? nextTabs[(index - 1).clamp(0, nextTabs.length - 1)].id
         : state.selectedTabId;
     state = TerminalWorkspaceState(tabs: nextTabs, selectedTabId: nextSelected);
+    // Terminate only after the state update so the views unmount before
+    // their native terminal handles are freed.
+    for (final session in sessions) {
+      unawaited(session.terminate());
+    }
   }
 
   /// Attaches every pane in a received tab before publishing the import.
@@ -408,10 +411,20 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
         ], id: 'close-running-tab:$tabId')) {
       return;
     }
-    for (final pane in group.panes.values) {
-      await pane.tab.session.terminate();
-    }
+    final sessions = [
+      for (final pane in group.panes.values) pane.tab.session,
+    ];
 
+    // Drop the tab from the tree first: key events can still arrive between
+    // here and the frame that unmounts the views, and they must not reach a
+    // disposed controller whose native handles are already freed.
+    _removeTabAt(index, tabId);
+    for (final session in sessions) {
+      unawaited(session.terminate());
+    }
+  }
+
+  void _removeTabAt(int index, String tabId) {
     final nextTabs = [...state.tabs]..removeAt(index);
     if (nextTabs.isEmpty) {
       state = const TerminalWorkspaceState();
@@ -421,6 +434,7 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
         ? nextTabs[(index - 1).clamp(0, nextTabs.length - 1)].id
         : state.selectedTabId;
     state = TerminalWorkspaceState(tabs: nextTabs, selectedTabId: nextSelected);
+
   }
 
   /// Closes one pane in the active top-level tab.
@@ -450,8 +464,8 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
       await closeTab(current.id);
       return;
     }
-    await current.panes[paneId]!.tab.session.terminate();
     state = _replaceGroup(_withoutPane(current, paneId));
+    unawaited(session.terminate());
   }
 
   void setSplitRatio(String splitId, double ratio) {
@@ -463,13 +477,16 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
   }
 
   Future<void> closeAll() async {
-    for (final group in state.tabs) {
-      for (final pane in group.panes.values) {
-        await pane.tab.session.terminate();
-      }
-    }
+    final sessions = [
+      for (final group in state.tabs)
+        for (final pane in group.panes.values) pane.tab.session,
+    ];
     state = const TerminalWorkspaceState();
+    for (final session in sessions) {
+      unawaited(session.terminate());
+    }
   }
+
 
   TerminalWorkspaceTab _withoutPane(TerminalWorkspaceTab group, String paneId) {
     final nextLayout = removePaneFromLayout(group.layout, paneId);

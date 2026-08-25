@@ -42,6 +42,7 @@ class TerminalControllerImpl extends TerminalController
   late final SelectionGestureDriver _selectionGesture;
   final vt.KeyEvent _keyEvent;
   final MouseEvent _mouseEvent;
+  bool _disposed = false;
   Offset _lastPointerPosition = Offset.zero;
   final TerminalInputClient _textInput;
 
@@ -264,6 +265,7 @@ class TerminalControllerImpl extends TerminalController
 
   @override
   void dispose() {
+    _disposed = true;
     terminal.removeListener(_onTerminalChanged);
     detach();
     _keyEvent.dispose();
@@ -278,6 +280,7 @@ class TerminalControllerImpl extends TerminalController
 
   @override
   KeyEventResult handleKeyEvent(KeyEvent event) {
+    if (_disposed) return .ignored;
     if (!_hasActiveComposition &&
         (event is KeyDownEvent || event is KeyRepeatEvent) &&
         HardwareKeyboard.instance.isShiftPressed &&
@@ -351,6 +354,7 @@ class TerminalControllerImpl extends TerminalController
 
   @override
   void handleMouseEvent(TerminalMouseEvent event) {
+    if (_disposed) return;
     _mouseEvent
       ..action = event.action
       ..button = event.button
@@ -364,7 +368,6 @@ class TerminalControllerImpl extends TerminalController
     if (result.isEmpty) return;
     _emitOutput(utf8.encode(result));
   }
-
   @override
   void handleResize({
     required int cols,
@@ -375,6 +378,7 @@ class TerminalControllerImpl extends TerminalController
     required EdgeInsets padding,
     required double devicePixelRatio,
   }) {
+    if (_disposed) return;
     _lastCols = cols;
     _lastRows = rows;
     _lastMetrics = metrics;
@@ -428,6 +432,7 @@ class TerminalControllerImpl extends TerminalController
 
   @override
   void handleScroll(int lines) {
+    if (_disposed) return;
     if (_activeScreen != .alternate || lines == 0) return;
 
     if (_mouseTracking != .none) {
@@ -582,6 +587,7 @@ class TerminalControllerImpl extends TerminalController
 
   @override
   void sendKey(vt.Key key, {Mods mods = const .none()}) {
+    if (_disposed) return;
     final effectiveMods = mods | _virtualMods;
     final codepoint = unshiftedCodepointForKey(key);
     _keyEvent
