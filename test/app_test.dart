@@ -118,9 +118,7 @@ void main() {
     expect(container.read(terminalWorkspaceProvider).tabs, hasLength(1));
   });
 
-  testWidgets('Ctrl+Tab cycles tabs and panes, Cmd+number selects panes', (
-    tester,
-  ) async {
+  testWidgets('Ctrl+Tab cycles tabs, Cmd+number selects panes', (tester) async {
     await tester.pumpWidget(app());
     await tester.pumpAndSettle();
 
@@ -163,20 +161,22 @@ void main() {
       secondTabPaneIds.first,
     );
 
-    // Ctrl+Tab advances through panes, then wraps to the next top-level tab.
-    await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.tab);
-    expect(
-      container.read(terminalWorkspaceProvider).focusedPaneId,
-      secondTabPaneIds.last,
-    );
+    // Ctrl+Tab switches top-level tabs and preserves each tab's focused pane.
     await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.tab);
     expect(container.read(terminalWorkspaceProvider).selectedTabId, firstTabId);
     expect(
       container.read(terminalWorkspaceProvider).focusedPaneId,
       container.read(terminalWorkspaceProvider).tabs.first.layout.paneIds.first,
     );
-
     await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.tab);
+    expect(
+      container.read(terminalWorkspaceProvider).selectedTabId,
+      secondTab.id,
+    );
+    expect(
+      container.read(terminalWorkspaceProvider).focusedPaneId,
+      secondTabPaneIds.first,
+    );
 
     // Cmd+2 selects the second pane in the selected tab.
     await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.digit2);

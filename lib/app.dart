@@ -67,8 +67,8 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
     ref.read(terminalWorkspaceProvider.notifier).split(axis);
   }
 
-  void _focusNext() {
-    ref.read(terminalWorkspaceProvider.notifier).focusNext();
+  void _selectNextTab() {
+    ref.read(terminalWorkspaceProvider.notifier).selectNextTab();
   }
 
   void _selectPaneNumber(int number) {
@@ -159,7 +159,7 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
           const SingleActivator(LogicalKeyboardKey.keyT, control: true): () =>
               _openTerminal(),
           const SingleActivator(LogicalKeyboardKey.tab, control: true): () =>
-              _focusNext(),
+              _selectNextTab(),
           const SingleActivator(LogicalKeyboardKey.digit1, meta: true): () =>
               _selectPaneNumber(1),
           const SingleActivator(LogicalKeyboardKey.digit2, meta: true): () =>
@@ -202,7 +202,7 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
               _closeSelectedTab(),
         },
         child: TerminalWorkspacePage(
-          onFocusNext: _focusNext,
+          onSelectNextTab: _selectNextTab,
           onSelectPaneNumber: _selectPaneNumber,
         ),
       ),
