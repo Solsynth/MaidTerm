@@ -153,8 +153,8 @@ class _ExternalDropOverlay extends StatelessWidget {
 }
 
 /// The workspace ground: a `surface` field (or the subdued
-/// background image) that the floating pane lands sit on. Panes float above
-/// it with a ring of ground visible around every edge.
+/// background image) that the flat pane layout rests on. Ground remains
+/// visible around every pane and between split panes.
 class _WorkspaceGround extends ConsumerWidget {
   const _WorkspaceGround({required this.child});
 
@@ -463,27 +463,58 @@ class _TerminalPaneView extends ConsumerWidget {
           );
 
     final scheme = Theme.of(context).colorScheme;
+    final paneColor = hasBackgroundImage
+        ? scheme.surfaceContainerHigh.withValues(alpha: 0.64)
+        : scheme.surfaceContainerHigh;
+    final paneBorderWidth = 1 / MediaQuery.devicePixelRatioOf(context);
+    // A shadow over a transparent terminal darkens the shared image beneath.
+    final showPaneShadow = focused && !transparent;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: () =>
           ref.read(terminalWorkspaceProvider.notifier).focusPane(paneId),
-      child: Container(
+      child: AnimatedContainer(
+        duration: _paneTransitionDuration,
+        curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
-          color: hasBackgroundImage
-              ? scheme.surfaceContainerHigh.withValues(alpha: 0.64)
-              : scheme.surfaceContainerHigh,
+          color: focused
+              ? paneColor
+              : Color.lerp(paneColor, scheme.surface, 0.26),
           borderRadius: BorderRadius.circular(_paneRadius),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
+          // Inactive panes stay completely flat; transparent panes stay flat
+          // too, so the background image remains clean beneath the terminal.
+          boxShadow: showPaneShadow
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.22),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : const [],
+        ),
+        // Paint the physical-pixel hairline over the pane so it does not
+        // steal space from the terminal surface.
+        foregroundDecoration: BoxDecoration(
+          border: Border.all(
+            color: (focused ? scheme.outline : scheme.outlineVariant)
+                .withValues(alpha: focused ? 0.72 : 0.46),
+            width: paneBorderWidth,
+          ),
+          borderRadius: BorderRadius.circular(_paneRadius),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(_paneRadius),
-          child: terminal,
+          child: TweenAnimationBuilder<double>(
+            duration: _paneTransitionDuration,
+            curve: Curves.easeOutCubic,
+            tween: Tween<double>(end: focused ? 0 : 1),
+            builder: (context, inactiveAmount, child) => ColorFiltered(
+              colorFilter: ColorFilter.matrix(_paneColorMatrix(inactiveAmount)),
+              child: child,
+            ),
+            child: terminal,
+          ),
         ),
       ),
     );
@@ -509,8 +540,7 @@ const _workspaceTabBarWidth = 180.0;
 const _compactTabBarWidth = 160.0;
 const _minWorkspaceTabBarWidth = 48.0;
 
-/// The floating-land chrome: a ring of ground around the whole layout and
-/// between split panes, plus the land rounding.
+/// The flat ground around the whole layout and between split panes.
 const _workspaceGroundPadding = 10.0;
 
 /// The corner that tucks the workspace ground under the title bar beside a
@@ -518,8 +548,39 @@ const _workspaceGroundPadding = 10.0;
 const _workspaceCornerRadius = 12.0;
 const _paneGap = 10.0;
 const _paneRadius = 14.0;
+const _paneTransitionDuration = Duration(milliseconds: 220);
 const _tabBarHandleWidth = 1.0;
 const _tabEntryVerticalPadding = 2.0;
+
+List<double> _paneColorMatrix(double inactiveAmount) {
+  // Keep inactive panes readable, but make focus unmistakable at a glance.
+  final saturation = 1 - (0.62 * inactiveAmount);
+  final grayscale = 1 - saturation;
+  final brightness = 1 - (0.16 * inactiveAmount);
+  return [
+    brightness * (0.2126 * grayscale + saturation),
+    brightness * (0.7152 * grayscale),
+    brightness * (0.0722 * grayscale),
+    0,
+    0,
+    brightness * (0.2126 * grayscale),
+    brightness * (0.7152 * grayscale + saturation),
+    brightness * (0.0722 * grayscale),
+    0,
+    0,
+    brightness * (0.2126 * grayscale),
+    brightness * (0.7152 * grayscale),
+    brightness * (0.0722 * grayscale + saturation),
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ];
+}
+
 const _verticalTabStripTopMargin =
     _workspaceGroundPadding - _tabEntryVerticalPadding;
 
