@@ -1,0 +1,179 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to build"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - windows
+          - linux
+
+jobs:
+  build-windows:
+    if: github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows'
+    runs-on: windows-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      # Retry + HTTP/1.1: git deps clone from src.solsynth.dev behind
+      # Cloudflare, which intermittently resets large pack transfers (curl 56).
+      - name: flutter pub get
+        shell: bash
+        run: |
+          git config --global http.version HTTP/1.1
+          for attempt in 1 2 3; do
+            flutter pub get && break
+            echo "flutter pub get failed (attempt $attempt); retrying in 10s"
+            sleep 10
+          done
+      # libghostty ships prebuilts for windows x64, so no Zig needed here.
+      # Pass distribution overrides only when configured; otherwise the
+      # compiled-in defaults in lib/settings/about_page.dart apply, since an
+      # empty --dart-define would blank them.
+      - name: Resolve distribution dart-defines
+        id: distribution_defines
+        shell: bash
+        run: |
+          defines=()
+          if [[ -n "${{ vars.DISTRIBUTION_API_BASE_URL }}" ]]; then
+            defines+=("--dart-define=DISTRIBUTION_API_BASE_URL=${{ vars.DISTRIBUTION_API_BASE_URL }}")
+          fi
+          if [[ -n "${{ vars.DISTRIBUTION_PRODUCT_ID }}" ]]; then
+            defines+=("--dart-define=DISTRIBUTION_PRODUCT_ID=${{ vars.DISTRIBUTION_PRODUCT_ID }}")
+          fi
+          echo "defines=${defines[*]}" >> "$GITHUB_OUTPUT"
+      - run: flutter build windows --release ${{ steps.distribution_defines.outputs.defines }}
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-windows
+          path: build/windows/x64/runner/Release/
+
+  build-linux:
+    if: github.event_name == 'push' || github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-dev
+      # Retry + HTTP/1.1: git deps clone from src.solsynth.dev behind
+      # Cloudflare, which intermittently resets large pack transfers (curl 56).
+      - name: flutter pub get
+        run: |
+          git config --global http.version HTTP/1.1
+          for attempt in 1 2 3; do
+            flutter pub get && break
+            echo "flutter pub get failed (attempt $attempt); retrying in 10s"
+            sleep 10
+          done
+      # libghostty ships prebuilts for linux x64, so no Zig needed here.
+      - name: Resolve distribution dart-defines
+        id: distribution_defines
+        run: |
+          defines=()
+          if [[ -n "${{ vars.DISTRIBUTION_API_BASE_URL }}" ]]; then
+            defines+=("--dart-define=DISTRIBUTION_API_BASE_URL=${{ vars.DISTRIBUTION_API_BASE_URL }}")
+          fi
+          if [[ -n "${{ vars.DISTRIBUTION_PRODUCT_ID }}" ]]; then
+            defines+=("--dart-define=DISTRIBUTION_PRODUCT_ID=${{ vars.DISTRIBUTION_PRODUCT_ID }}")
+          fi
+          echo "defines=${defines[*]}" >> "$GITHUB_OUTPUT"
+      - run: flutter build linux --release ${{ steps.distribution_defines.outputs.defines }}
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-linux
+          path: build/linux/x64/release/bundle/
+
+  # Configure repository variables DISTRIBUTION_API_BASE_URL and
+  # DISTRIBUTION_PRODUCT_ID, plus secret DISTRIBUTION_UPLOAD_KEY.
+  upload-to-distribution:
+    needs: [build-windows, build-linux]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve distribution version
+        id: distribution_version
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == refs/tags/* ]]; then
+            version="$GITHUB_REF_NAME"
+          else
+            version="$(git tag --sort=-creatordate | sed -n '1p')"
+          fi
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - if: needs.build-windows.result == 'success'
+        name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-windows
+          path: ./artifacts/windows
+      - if: needs.build-linux.result == 'success'
+        name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-linux
+          path: ./artifacts/linux
+      - if: needs.build-windows.result == 'success'
+        name: Zip Windows build
+        run: |
+          cd ./artifacts/windows
+          zip -r ../build-output-windows.zip .
+      - if: needs.build-linux.result == 'success'
+        name: Zip Linux build
+        run: |
+          cd ./artifacts/linux
+          zip -r ../build-output-linux.zip .
+      - if: needs.build-windows.result == 'success'
+        name: Upload Windows build to Solsynth Express
+        id: upload_windows
+        uses: Solsynth/SolsynthExpressUpload@v2
+        with:
+          api-base-url: ${{ vars.DISTRIBUTION_API_BASE_URL }}
+          product-id: ${{ vars.DISTRIBUTION_PRODUCT_ID }}
+          api-key: ${{ secrets.DISTRIBUTION_UPLOAD_KEY }}
+          version: ${{ steps.distribution_version.outputs.version }}
+          file: ./artifacts/build-output-windows.zip
+          platform: windows
+          architecture: amd64
+          mime-type: application/zip
+          channel: stable
+      - if: needs.build-linux.result == 'success'
+        name: Upload Linux build to Solsynth Express
+        id: upload_linux
+        uses: Solsynth/SolsynthExpressUpload@v2
+        with:
+          api-base-url: ${{ vars.DISTRIBUTION_API_BASE_URL }}
+          product-id: ${{ vars.DISTRIBUTION_PRODUCT_ID }}
+          api-key: ${{ secrets.DISTRIBUTION_UPLOAD_KEY }}
+          version: ${{ steps.distribution_version.outputs.version }}
+          file: ./artifacts/build-output-linux.zip
+          platform: linux
+          architecture: amd64
+          mime-type: application/zip
+          channel: stable
