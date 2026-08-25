@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <pthread.h>
+#include <poll.h>
 #include <unistd.h>
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -41,6 +42,7 @@ typedef struct PtySession {
     pthread_t waiter_thread;
     pthread_mutex_t mutex;
     pthread_cond_t ack_condition;
+    int wake_fds[2];
     uint8_t *history;
     size_t history_length;
     PtySubscriber *subscribers;
@@ -115,6 +117,18 @@ static void *read_loop(void *arg) {
             session->read_ack_allowed = false;
             pthread_mutex_unlock(&session->mutex);
         }
+        struct pollfd fds[2];
+        fds[0].fd = session->ptm;
+        fds[0].events = POLLIN;
+        fds[1].fd = session->wake_fds[0];
+        fds[1].events = POLLIN;
+        int polled = poll(fds, 2, -1);
+        if (polled < 0) {
+            if (errno == EINTR) continue;
+            break;
+        }
+        if ((fds[1].revents & POLLIN) != 0) break;
+        if ((fds[0].revents & (POLLIN | POLLHUP | POLLERR | POLLNVAL)) == 0) continue;
         ssize_t length = read(session->ptm, buffer, sizeof(buffer));
         if (length < 0 && errno == EINTR) continue;
         if (length <= 0) break;
@@ -148,8 +162,20 @@ static void *wait_exit_thread(void *arg) {
     PtySession *session = options->session;
     free(options);
 
+    // Poll with a timeout instead of blocking forever in waitpid so destroy
+    // can wake this thread even when the child ignores SIGTERM.
     int status = 0;
-    (void)waitpid(session->pid, &status, 0);
+    bool reaped = false;
+    while (!reaped) {
+        struct pollfd wake;
+        wake.fd = session->wake_fds[0];
+        wake.events = POLLIN;
+        int polled = poll(&wake, 1, 100);
+        if (polled > 0) break;
+        if (polled < 0 && errno != EINTR) break;
+        pid_t waited = waitpid(session->pid, &status, WNOHANG);
+        if (waited == session->pid || waited < 0) reaped = true;
+    }
     int exit_code = WIFEXITED(status) ? WEXITSTATUS(status)
                     : WIFSIGNALED(status) ? -WTERMSIG(status) : -1;
 
@@ -185,6 +211,7 @@ static int start_threads(PtySession *session) {
     if (pthread_create(&session->waiter_thread, NULL, wait_exit_thread, waiter) != 0) {
         free(waiter);
         close(session->ptm);
+        session->ptm = -1;
         (void)kill(session->pid, SIGTERM);
         pthread_join(session->reader_thread, NULL);
         session->reader_created = false;
@@ -207,18 +234,34 @@ static void free_subscribers(PtySession *session) {
 static void destroy_session(PtySession *session) {
     pthread_mutex_lock(&session->mutex);
     session->destroying = true;
+    pthread_cond_broadcast(&session->ack_condition);
     bool exited = session->exited;
-    int fd = session->ptm;
     int pid = session->pid;
-    session->ptm = -1;
     pthread_mutex_unlock(&session->mutex);
 
-    if (!exited) (void)kill(pid, SIGTERM);
-    if (fd >= 0) close(fd);
+    if (!exited && pid > 0) {
+        // The forkpty child called setsid, so its process group id equals
+        // its pid; signal the whole group so foreground children holding
+        // the slave pty die too and the master reaches EOF.
+        (void)kill(-pid, SIGTERM);
+    }
+    // Wake the reader and waiter threads out of poll before joining them;
+    // closing the master alone never unblocks them reliably.
+    char wake_byte = 0;
+    (void)write(session->wake_fds[1], &wake_byte, 1);
+
+    // Close the master only after the reader exited: closing an fd while
+    // another thread still polls or reads it lets the number be reused
+    // mid-call by an unrelated descriptor.
     if (session->reader_created) pthread_join(session->reader_thread, NULL);
+    int fd = session->ptm;
+    session->ptm = -1;
+    if (fd >= 0) close(fd);
     if (session->waiter_created) pthread_join(session->waiter_thread, NULL);
 
     free_subscribers(session);
+    if (session->wake_fds[0] >= 0) close(session->wake_fds[0]);
+    if (session->wake_fds[1] >= 0) close(session->wake_fds[1]);
     free(session->history);
     pthread_cond_destroy(&session->ack_condition);
     pthread_mutex_destroy(&session->mutex);
@@ -286,6 +329,16 @@ FFI_PLUGIN_EXPORT uint64_t pty_session_create(PtyOptions *options) {
         (void)kill(pid, SIGTERM);
         close(ptm);
         error_message = "Failed to allocate PTY history";
+        return 0;
+    }
+    session->wake_fds[0] = -1;
+    session->wake_fds[1] = -1;
+    if (pipe(session->wake_fds) != 0) {
+        free(session->history);
+        free(session);
+        (void)kill(pid, SIGTERM);
+        close(ptm);
+        error_message = "Failed to create PTY wake pipe";
         return 0;
     }
     session->ptm = ptm;
