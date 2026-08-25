@@ -23,6 +23,11 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+        with:
+          # Build the tip of the default branch; the pushed tag only pins the
+          # release version (extracted below and in upload-to-distribution).
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -65,8 +70,16 @@ jobs:
         id: extract_version
         shell: bash
         run: |
-          pubspec="$(cat pubspec.yaml)"
-          if [[ "$pubspec" =~ version:\ *([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+) ]]; then
+          # Version comes from the latest git tag, not pubspec: the source is
+          # built from the branch tip, so pubspec may already be bumped ahead.
+          tag="$(git tag --sort=-creatordate | sed -n '1p')"
+          if [[ "$tag" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)$ ]]; then
+            echo "app_version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+            echo "build_number=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "No version tag found; falling back to pubspec.yaml" >&2
+            pubspec="$(cat pubspec.yaml)"
+            [[ "$pubspec" =~ version:\ *([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+) ]]
             echo "app_version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
             echo "build_number=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
           fi
@@ -75,7 +88,7 @@ jobs:
         with:
           name: build-output-windows
           path: build/windows/x64/runner/Release/
-      # Version defaults live in setup.iss; overridden here from pubspec.
+      # Version defaults live in setup.iss; overridden here from the latest tag.
       - name: Compile Installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
@@ -94,6 +107,11 @@ jobs:
       # with Zig (needs >= 0.16.0 per Ghostty 1.3.x build.zig.zon).
       - name: Clone repository
         uses: actions/checkout@v4
+        with:
+          # Build the tip of the default branch; the pushed tag only pins the
+          # release version (resolved in upload-to-distribution).
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
