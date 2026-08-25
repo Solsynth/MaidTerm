@@ -312,6 +312,47 @@ class TerminalWorkspaceNotifier extends Notifier<TerminalWorkspaceState> {
     state = _replaceGroup(group.copyWith(focusedPaneId: paneId));
   }
 
+  /// Focuses the next pane in layout order, then wraps to the next top-level
+  /// tab. The final pane wraps back to the first pane in the first tab.
+  void focusNext() {
+    final locations = <({String tabId, String paneId})>[
+      for (final tab in state.tabs)
+        for (final paneId in tab.layout.paneIds)
+          (tabId: tab.id, paneId: paneId),
+    ];
+    if (locations.isEmpty) return;
+
+    final currentIndex = locations.indexWhere(
+      (location) =>
+          location.tabId == state.selectedTabId &&
+          location.paneId == state.focusedPaneId,
+    );
+    final next = locations[(currentIndex + 1) % locations.length];
+    final group = state.tabs.firstWhereOrNull((tab) => tab.id == next.tabId);
+    if (group == null || !group.panes.containsKey(next.paneId)) return;
+
+    final nextGroup = group.copyWith(focusedPaneId: next.paneId);
+    state = TerminalWorkspaceState(
+      tabs: [
+        for (final tab in state.tabs) tab.id == nextGroup.id ? nextGroup : tab,
+      ],
+      selectedTabId: nextGroup.id,
+    );
+  }
+
+  /// Focuses the [number]th pane in the selected tab. Numbers are one-based;
+  /// zero selects pane ten, matching the Cmd+1 through Cmd+0 shortcuts.
+  void selectPaneNumber(int number) {
+    final group = state.selectedTab;
+    if (group == null || number < 1 || number > 10) return;
+    final paneIds = group.layout.paneIds.toList(growable: false);
+    final paneIndex = number == 10 ? 9 : number - 1;
+    if (paneIndex >= paneIds.length) return;
+    final paneId = paneIds[paneIndex];
+    if (paneId == group.focusedPaneId) return;
+    state = _replaceGroup(group.copyWith(focusedPaneId: paneId));
+  }
+
   /// Selects a top-level tab. Leaf ids are also accepted for compatibility.
   void selectTab(String tabId, {String? paneId}) {
     final group = state.tabs.firstWhereOrNull((tab) => tab.id == tabId);

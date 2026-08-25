@@ -6,8 +6,10 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:maidterm_app/app.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:maidterm_app/workspace/terminal_workspace.dart';
 import 'package:maidterm_app/shell/local_shell_session.dart';
 
@@ -114,6 +116,78 @@ void main() {
     // Cmd+Shift+W closes the entire selected tab.
     await press(LogicalKeyboardKey.keyW, shift: true);
     expect(container.read(terminalWorkspaceProvider).tabs, hasLength(1));
+  });
+
+  testWidgets('Ctrl+Tab cycles tabs and panes, Cmd+number selects panes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TerminalWorkspacePage)),
+    );
+
+    Future<void> press(
+      LogicalKeyboardKey modifier,
+      LogicalKeyboardKey key,
+    ) async {
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyDownEvent(key);
+      await tester.sendKeyUpEvent(key);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pump();
+    }
+
+    await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.keyT);
+    await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.keyD);
+    final firstTabId = container.read(terminalWorkspaceProvider).tabs.first.id;
+    final secondTab = container.read(terminalWorkspaceProvider).selectedTab!;
+    final secondTabPaneIds = secondTab.layout.paneIds.toList();
+
+    // Cmd+1 selects the first pane in the selected tab.
+    await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.digit1);
+    expect(
+      container.read(terminalWorkspaceProvider).focusedPaneId,
+      secondTabPaneIds.first,
+    );
+
+    // Cmd+Tab is intentionally not a navigation shortcut.
+    await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.tab);
+    expect(
+      container.read(terminalWorkspaceProvider).selectedTabId,
+      secondTab.id,
+    );
+    expect(
+      container.read(terminalWorkspaceProvider).focusedPaneId,
+      secondTabPaneIds.first,
+    );
+
+    // Ctrl+Tab advances through panes, then wraps to the next top-level tab.
+    await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.tab);
+    expect(
+      container.read(terminalWorkspaceProvider).focusedPaneId,
+      secondTabPaneIds.last,
+    );
+    await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.tab);
+    expect(container.read(terminalWorkspaceProvider).selectedTabId, firstTabId);
+    expect(
+      container.read(terminalWorkspaceProvider).focusedPaneId,
+      container.read(terminalWorkspaceProvider).tabs.first.layout.paneIds.first,
+    );
+
+    await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.tab);
+
+    // Cmd+2 selects the second pane in the selected tab.
+    await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.digit2);
+    expect(
+      container.read(terminalWorkspaceProvider).selectedTabId,
+      secondTab.id,
+    );
+    expect(
+      container.read(terminalWorkspaceProvider).focusedPaneId,
+      secondTabPaneIds.last,
+    );
   });
 
   testWidgets('title bar menu opens and acts on the workspace', (tester) async {

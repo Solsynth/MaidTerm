@@ -13,12 +13,17 @@ import '../shell/drop_paths.dart';
 import 'terminal_workspace.dart';
 
 /// Renders one terminal with the settings-derived theme. The palette follows
-/// the app brightness: light settings use the light scheme, dark use dark.
 class TerminalSurface extends ConsumerStatefulWidget {
-  const TerminalSurface({super.key, required this.tab, this.autofocus = true});
+  const TerminalSurface({
+    super.key,
+    required this.tab,
+    this.autofocus = true,
+    this.onKeyEvent,
+  });
 
   final TerminalTab tab;
   final bool autofocus;
+  final FocusOnKeyEventCallback? onKeyEvent;
 
   @override
   ConsumerState<TerminalSurface> createState() => _TerminalSurfaceState();
@@ -74,7 +79,8 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
   @override
   void didUpdateWidget(TerminalSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.tab.id != widget.tab.id) {
+    if (oldWidget.tab.id != widget.tab.id ||
+        (!oldWidget.autofocus && widget.autofocus)) {
       _requestFocusAfterBuild();
     }
   }
@@ -195,6 +201,7 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
                 focusNode: _focusNode,
                 theme: buildTheme(fullScreen),
                 autofocus: true,
+                onKeyEvent: widget.onKeyEvent,
                 padding: margin,
                 linkSettings: maidterm.LinkSettings(
                   onActivate: _handleLinkActivate,

@@ -67,6 +67,14 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
     ref.read(terminalWorkspaceProvider.notifier).split(axis);
   }
 
+  void _focusNext() {
+    ref.read(terminalWorkspaceProvider.notifier).focusNext();
+  }
+
+  void _selectPaneNumber(int number) {
+    ref.read(terminalWorkspaceProvider.notifier).selectPaneNumber(number);
+  }
+
   void _closeSelectedTab() {
     final workspace = ref.read(terminalWorkspaceProvider);
     final tabId = workspace.selectedTab?.id;
@@ -150,6 +158,28 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
               _openTerminal(),
           const SingleActivator(LogicalKeyboardKey.keyT, control: true): () =>
               _openTerminal(),
+          const SingleActivator(LogicalKeyboardKey.tab, control: true): () =>
+              _focusNext(),
+          const SingleActivator(LogicalKeyboardKey.digit1, meta: true): () =>
+              _selectPaneNumber(1),
+          const SingleActivator(LogicalKeyboardKey.digit2, meta: true): () =>
+              _selectPaneNumber(2),
+          const SingleActivator(LogicalKeyboardKey.digit3, meta: true): () =>
+              _selectPaneNumber(3),
+          const SingleActivator(LogicalKeyboardKey.digit4, meta: true): () =>
+              _selectPaneNumber(4),
+          const SingleActivator(LogicalKeyboardKey.digit5, meta: true): () =>
+              _selectPaneNumber(5),
+          const SingleActivator(LogicalKeyboardKey.digit6, meta: true): () =>
+              _selectPaneNumber(6),
+          const SingleActivator(LogicalKeyboardKey.digit7, meta: true): () =>
+              _selectPaneNumber(7),
+          const SingleActivator(LogicalKeyboardKey.digit8, meta: true): () =>
+              _selectPaneNumber(8),
+          const SingleActivator(LogicalKeyboardKey.digit9, meta: true): () =>
+              _selectPaneNumber(9),
+          const SingleActivator(LogicalKeyboardKey.digit0, meta: true): () =>
+              _selectPaneNumber(10),
           const SingleActivator(LogicalKeyboardKey.keyD, meta: true): () =>
               _split(SplitAxis.horizontal),
           const SingleActivator(LogicalKeyboardKey.keyD, control: true): () =>
@@ -171,7 +201,10 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
           ): () =>
               _closeSelectedTab(),
         },
-        child: const TerminalWorkspacePage(),
+        child: TerminalWorkspacePage(
+          onFocusNext: _focusNext,
+          onSelectPaneNumber: _selectPaneNumber,
+        ),
       ),
     );
   }

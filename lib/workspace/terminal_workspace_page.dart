@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -17,7 +18,14 @@ import 'terminal_workspace.dart';
 
 /// The main screen: one workspace-wide tab strip around resizable split panes.
 class TerminalWorkspacePage extends ConsumerWidget {
-  const TerminalWorkspacePage({super.key});
+  const TerminalWorkspacePage({
+    super.key,
+    this.onFocusNext,
+    this.onSelectPaneNumber,
+  });
+
+  final VoidCallback? onFocusNext;
+  final ValueChanged<int>? onSelectPaneNumber;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final coordinator = ref.watch(multiWindowCoordinatorProvider);
@@ -53,7 +61,13 @@ class TerminalWorkspacePage extends ConsumerWidget {
         final tabBarFirst =
             tabBarPosition == TabBarPosition.top ||
             tabBarPosition == TabBarPosition.left;
-        final ground = _WorkspaceGround(child: _LayoutNode(node: root));
+        final ground = _WorkspaceGround(
+          child: _LayoutNode(
+            node: root,
+            onFocusNext: onFocusNext,
+            onSelectPaneNumber: onSelectPaneNumber,
+          ),
+        );
         final layout = Expanded(
           child: vertical
               ? ClipRRect(
@@ -184,15 +198,25 @@ class _WorkspaceGround extends ConsumerWidget {
 }
 
 class _LayoutNode extends ConsumerWidget {
-  const _LayoutNode({required this.node});
+  const _LayoutNode({
+    required this.node,
+    this.onFocusNext,
+    this.onSelectPaneNumber,
+  });
 
   final PaneLayout node;
+  final VoidCallback? onFocusNext;
+  final ValueChanged<int>? onSelectPaneNumber;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     switch (node) {
       case PaneLayoutLeaf(:final paneId):
-        return _TerminalPaneView(paneId: paneId);
+        return _TerminalPaneView(
+          paneId: paneId,
+          onFocusNext: onFocusNext,
+          onSelectPaneNumber: onSelectPaneNumber,
+        );
       case PaneLayoutSplit(
         :final id,
         :final axis,
@@ -206,8 +230,16 @@ class _LayoutNode extends ConsumerWidget {
           onRatioChanged: (value) => ref
               .read(terminalWorkspaceProvider.notifier)
               .setSplitRatio(id, value),
-          first: _LayoutNode(node: first),
-          second: _LayoutNode(node: second),
+          first: _LayoutNode(
+            node: first,
+            onFocusNext: onFocusNext,
+            onSelectPaneNumber: onSelectPaneNumber,
+          ),
+          second: _LayoutNode(
+            node: second,
+            onFocusNext: onFocusNext,
+            onSelectPaneNumber: onSelectPaneNumber,
+          ),
         );
     }
   }
@@ -326,9 +358,40 @@ class _ResizableSplitState extends State<_ResizableSplit> {
 }
 
 class _TerminalPaneView extends ConsumerWidget {
-  const _TerminalPaneView({required this.paneId});
+  const _TerminalPaneView({
+    required this.paneId,
+    this.onFocusNext,
+    this.onSelectPaneNumber,
+  });
 
   final String paneId;
+  final VoidCallback? onFocusNext;
+  final ValueChanged<int>? onSelectPaneNumber;
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (event.logicalKey == LogicalKeyboardKey.tab &&
+        keyboard.isControlPressed &&
+        !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed &&
+        !keyboard.isShiftPressed) {
+      onFocusNext?.call();
+      return KeyEventResult.handled;
+    }
+    final number = _paneNumberForKey(event.logicalKey);
+    if (number != null &&
+        keyboard.isMetaPressed &&
+        !keyboard.isControlPressed &&
+        !keyboard.isAltPressed &&
+        !keyboard.isShiftPressed) {
+      onSelectPaneNumber?.call(number);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -392,6 +455,7 @@ class _TerminalPaneView extends ConsumerWidget {
                     key: GlobalObjectKey(workspace.panes[paneId]!.viewKey),
                     tab: selected,
                     autofocus: focused,
+                    onKeyEvent: _handleKeyEvent,
                   ),
                 ),
               ],
@@ -425,6 +489,20 @@ class _TerminalPaneView extends ConsumerWidget {
     );
   }
 }
+
+int? _paneNumberForKey(LogicalKeyboardKey key) => switch (key) {
+  LogicalKeyboardKey.digit1 => 1,
+  LogicalKeyboardKey.digit2 => 2,
+  LogicalKeyboardKey.digit3 => 3,
+  LogicalKeyboardKey.digit4 => 4,
+  LogicalKeyboardKey.digit5 => 5,
+  LogicalKeyboardKey.digit6 => 6,
+  LogicalKeyboardKey.digit7 => 7,
+  LogicalKeyboardKey.digit8 => 8,
+  LogicalKeyboardKey.digit9 => 9,
+  LogicalKeyboardKey.digit0 => 10,
+  _ => null,
+};
 
 const _workspaceTabBarHeight = 40.0;
 const _workspaceTabBarWidth = 180.0;
