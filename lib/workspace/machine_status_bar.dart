@@ -10,7 +10,7 @@ import '../shell/process_title_monitor.dart';
 import 'system_metrics.dart';
 import 'terminal_workspace.dart';
 
-const _machineStatusBarHeight = 48.0;
+const _machineStatusBarHeight = 40.0;
 
 /// A docked, pill-shaped readout for the signals users tend to glance at
 /// while working in a terminal. Its row is given real layout space by the
@@ -70,7 +70,7 @@ class MachineStatusBar extends ConsumerWidget {
     return SizedBox(
       height: _machineStatusBarHeight,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 5, 18, 7),
+        padding: const EdgeInsets.fromLTRB(12, 3, 12, 5),
         child: Tooltip(
           message:
               'Machine status · ${settings.statusBarHistoryMinutes}m history',
@@ -79,14 +79,12 @@ class MachineStatusBar extends ConsumerWidget {
             children: [
               for (final metric in visibleMetrics)
                 Expanded(
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: _Metric(
-                        metric: metric,
-                        snapshot: snapshot ?? const SystemMetricsSnapshot(),
-                        focusedMemoryBytes: focusedMemoryBytes,
-                      ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 7),
+                    child: _Metric(
+                      metric: metric,
+                      snapshot: snapshot ?? const SystemMetricsSnapshot(),
+                      focusedMemoryBytes: focusedMemoryBytes,
                     ),
                   ),
                 ),
@@ -172,13 +170,25 @@ class _Metric extends StatelessWidget {
       _ => Text(spec.value, style: mono),
     };
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(spec.icon, size: 17, color: spec.color),
-        const SizedBox(width: 7),
-        valueWidget,
-        const SizedBox(width: 9),
-        _MetricChart(metric: metric, snapshot: snapshot, color: spec.color),
+        Icon(spec.icon, size: 16, color: spec.color),
+        const SizedBox(width: 6),
+        Flexible(
+          fit: FlexFit.loose,
+          child: FittedBox(
+            alignment: Alignment.centerLeft,
+            fit: BoxFit.scaleDown,
+            child: valueWidget,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MetricChart(
+            metric: metric,
+            snapshot: snapshot,
+            color: spec.color,
+          ),
+        ),
       ],
     );
   }
@@ -213,8 +223,7 @@ class _MetricChart extends StatelessWidget {
         FlSpot(index.toDouble(), valuesWithFallback[index].clamp(0, 1)),
     ];
     return SizedBox(
-      width: metric == StatusMetric.network ? 52 : 46,
-      height: metric == StatusMetric.network ? 28 : 22,
+      height: metric == StatusMetric.network ? 24 : 20,
       child: LineChart(
         LineChartData(
           minX: 0,
@@ -232,7 +241,10 @@ class _MetricChart extends StatelessWidget {
               color: color,
               barWidth: 1.6,
               dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(show: false),
+              belowBarData: BarAreaData(
+                show: true,
+                color: color.withValues(alpha: 0.14),
+              ),
             ),
           ],
         ),
