@@ -681,7 +681,7 @@ class TerminalRenderBox extends RenderBox {
 
   void _syncVisualFullScreen() {
     final coverage = _pipeline.dominantBackgroundCoverage;
-    final threshold = _visualFullScreen ? 0.80 : 0.90;
+    const threshold = 0.60;
     final next = _terminal.activeScreen == .alternate && coverage >= threshold;
     if (_visualFullScreen == next) return;
     _visualFullScreen = next;
