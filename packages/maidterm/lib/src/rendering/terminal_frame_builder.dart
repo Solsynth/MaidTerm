@@ -633,6 +633,15 @@ final class _ForegroundEmitter {
               ..pop())
             .build()
           ..layout(const ParagraphConstraints(width: .infinity));
+    // Font advances need not match the cell grid: the grid is snapped up to
+    // whole device pixels, so a run laid out at natural advances would end up
+    // narrower or wider than the cells it covers and drift away from the
+    // cursor. Every character in an operator run is one cell wide.
+    final advance = paragraph.maxIntrinsicWidth;
+    final gridWidth = _frame.cellWidth * text.length;
+    final widthScale = advance > 0.0 && advance != gridWidth
+        ? gridWidth / advance
+        : 1.0;
     _sprites.shaped.add(
       ShapedRun(
         paragraph: paragraph,
@@ -646,6 +655,7 @@ final class _ForegroundEmitter {
           coreWidth + overhang,
           _frame.cellHeight,
         ),
+        widthScale: widthScale,
       ),
     );
   }

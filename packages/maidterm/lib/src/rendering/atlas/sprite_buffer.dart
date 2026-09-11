@@ -8,15 +8,23 @@ import 'atlas_entry.dart';
 /// Used for terminal text where ligatures matter. These runs are not atlas
 /// entries because Flutter does not expose glyph IDs, and caching arbitrary
 /// source strings as atlas images causes unbounded native image growth.
+///
+/// [widthScale] stretches the shaped paragraph horizontally so its advances
+/// add up to the terminal cells it covers. Glyph advances come from the font,
+/// while the cell grid is snapped up to whole device pixels, so the two drift
+/// apart by up to one pixel per glyph unless the run is scaled back onto the
+/// grid.
 final class ShapedRun {
   final Paragraph paragraph;
   final Offset offset;
   final Rect clip;
+  final double widthScale;
 
   const ShapedRun({
     required this.paragraph,
     required this.offset,
     required this.clip,
+    this.widthScale = 1.0,
   });
 
   void dispose() => paragraph.dispose();

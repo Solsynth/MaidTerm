@@ -17,7 +17,13 @@ final class ShapedRunPainter implements TerminalPainter {
       for (final run in row) {
         canvas.save();
         canvas.clipRect(run.clip);
-        canvas.drawParagraph(run.paragraph, run.offset);
+        if (run.widthScale == 1.0) {
+          canvas.drawParagraph(run.paragraph, run.offset);
+        } else {
+          canvas.translate(run.offset.dx, run.offset.dy);
+          canvas.scale(run.widthScale, 1.0);
+          canvas.drawParagraph(run.paragraph, Offset.zero);
+        }
         canvas.restore();
       }
     }
