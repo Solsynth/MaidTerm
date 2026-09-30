@@ -1,3 +1,6 @@
+// ignore_for_file: invalid_use_of_internal_member, implementation_imports
+
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -10,89 +13,142 @@ import 'package:material_ui/material_ui.dart' hide GlobalMaterialLocalizations;
 import 'package:material_ui/material_ui.dart'
     as material_ui
     show GlobalMaterialLocalizations;
+import 'package:flutter/src/widgets/_window.dart' as fw;
 
-import 'multi_window.dart';
 import 'settings/settings_page.dart';
 import 'settings/terminal_settings.dart';
+import 'windows/workspace_windows.dart';
 import 'workspace/session_layout.dart';
-import 'workspace/terminal_workspace.dart';
 import 'workspace/terminal_workspace_page.dart';
 import 'theme.dart';
 
-/// The window frame wraps the app's entire navigator, so EVERY page —
-/// workspace, settings, future routes — renders inside the desktop title bar.
-class MaidTermApp extends ConsumerStatefulWidget {
-  const MaidTermApp({super.key});
+/// The root of the single-engine app: one [fw.ViewCollection] holding a
+/// window per open workspace.
+///
+/// Every window renders the same widget tree, so state that used to be copied
+/// between engines — terminal sessions above all — is now shared by
+/// construction.
+class MaidTermWindowsHost extends ConsumerStatefulWidget {
+  const MaidTermWindowsHost({super.key});
 
   @override
-  ConsumerState<MaidTermApp> createState() => _MaidTermAppState();
+  ConsumerState<MaidTermWindowsHost> createState() => _MaidTermWindowsHostState();
 }
 
-class _MaidTermAppState extends ConsumerState<MaidTermApp> {
+class _MaidTermWindowsHostState extends ConsumerState<MaidTermWindowsHost> {
   static const _menuChannel = MethodChannel('maidterm/menu');
-
-  final _navigatorKey = GlobalKey<NavigatorState>();
-  final _settingsOpen = ValueNotifier<bool>(false);
 
   @override
   void initState() {
     super.initState();
     _menuChannel.setMethodCallHandler(_handleMenuCall);
-    // The attention-modal alert resolves its navigator from this key.
+    // Opened after the first frame: creating a window hands its first tab to
+    // the window's own workspace provider, and Riverpod forbids a provider
+    // from modifying another one while it initializes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(workspaceWindowsProvider).openWindow();
+    });
+  }
+
+  /// The shell menu is process-wide; its commands land in the focused window.
+  Future<void> _handleMenuCall(MethodCall call) async {
+    final windows = ref.read(workspaceWindowsProvider);
+    final actions = windows.activeActions;
+    switch (call.method) {
+      case 'newTab':
+        actions?.newTab();
+      case 'newWindow':
+        windows.openWindow();
+      case 'splitRight':
+        actions?.split(SplitAxis.horizontal);
+      case 'splitBelow':
+        actions?.split(SplitAxis.vertical);
+      case 'closeTab':
+        unawaited(actions?.closeSelectedTab());
+      case 'closePane':
+        unawaited(actions?.closeFocusedPane());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final windows = ref.watch(workspaceWindowsProvider);
+    // The controller is a stable object, so the tree has to be rebuilt from
+    // its notifications rather than from the provider's value.
+    return ListenableBuilder(
+      listenable: windows,
+      builder: (context, _) => ViewCollection(
+        views: [
+          for (final window in windows.windows)
+            if (window.controller != null)
+              fw.RegularWindow(
+              key: ObjectKey(window.controller),
+              controller: window.controller!,
+              child: MaidTermWindowApp(windowId: window.id),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One terminal window: the app routes, key handling and window chrome of a
+/// single [WorkspaceWindow].
+class MaidTermWindowApp extends ConsumerStatefulWidget {
+  const MaidTermWindowApp({super.key, required this.windowId});
+
+  final String windowId;
+
+  @override
+  ConsumerState<MaidTermWindowApp> createState() => _MaidTermWindowAppState();
+}
+
+class _MaidTermWindowAppState extends ConsumerState<MaidTermWindowApp> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  final _settingsOpen = ValueNotifier<bool>(false);
+  WorkspaceWindowsController? _windows;
+
+  @override
+  void initState() {
+    super.initState();
+    final windows = ref.read(workspaceWindowsProvider);
+    _windows = windows..addListener(_handleWindowsChanged);
+    // The attention-modal alert resolves its navigator from this key, so the
+    // modal has to follow the window the user is working in.
     IslandUIFoundation.configureNavigator(_navigatorKey);
   }
 
-  Future<void> _handleMenuCall(MethodCall call) async {
-    switch (call.method) {
-      case 'newTab':
-        _openTerminal();
-      case 'newWindow':
-        _openNewWindow();
-      case 'splitRight':
-        _split(SplitAxis.horizontal);
-      case 'splitBelow':
-        _split(SplitAxis.vertical);
-      case 'closeTab':
-        _closeSelectedTab();
-      case 'closePane':
-        _closeFocusedPane();
+  @override
+  void dispose() {
+    _windows?.removeListener(_handleWindowsChanged);
+    _settingsOpen.dispose();
+    super.dispose();
+  }
+
+  void _handleWindowsChanged() {
+    if (!mounted) return;
+    if (_windows?.activeWindowId == widget.windowId) {
+      IslandUIFoundation.configureNavigator(_navigatorKey);
     }
   }
 
-  void _openTerminal() {
-    ref.read(terminalWorkspaceProvider.notifier).openTerminal();
-  }
+  WorkspaceWindowActions get _actions =>
+      ref.read(workspaceWindowsProvider).actionsFor(widget.windowId);
 
-  void _split(SplitAxis axis) {
-    ref.read(terminalWorkspaceProvider.notifier).split(axis);
-  }
+  void _openTerminal() => _actions.newTab();
 
-  void _selectNextTab() {
-    ref.read(terminalWorkspaceProvider.notifier).selectNextTab();
-  }
+  void _split(SplitAxis axis) => _actions.split(axis);
 
-  void _selectPaneNumber(int number) {
-    ref.read(terminalWorkspaceProvider.notifier).selectPaneNumber(number);
-  }
+  void _selectNextTab() => _actions.selectNextTab();
 
-  void _closeSelectedTab() {
-    final workspace = ref.read(terminalWorkspaceProvider);
-    final tabId = workspace.selectedTab?.id;
-    if (tabId != null) {
-      ref.read(terminalWorkspaceProvider.notifier).closeTab(tabId);
-    }
-  }
+  void _selectPaneNumber(int number) => _actions.selectPaneNumber(number);
 
-  void _closeFocusedPane() {
-    final paneId = ref.read(terminalWorkspaceProvider).focusedPaneId;
-    if (paneId != null) {
-      ref.read(terminalWorkspaceProvider.notifier).closePane(paneId);
-    }
-  }
+  void _closeSelectedTab() => unawaited(_actions.closeSelectedTab());
 
-  void _openNewWindow() {
-    ref.read(multiWindowCoordinatorProvider).openNewWindow();
-  }
+  void _closeFocusedPane() => unawaited(_actions.closeFocusedPane());
+
+  void _openNewWindow() => ref.read(workspaceWindowsProvider).openWindow();
 
   void _openSettings() {
     _navigatorKey.currentState?.push(
@@ -179,6 +235,7 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
             transitionDuration: Duration.zero,
             reverseTransitionDuration: Duration.zero,
             pageBuilder: (context, animation, secondaryAnimation) => _FramePage(
+              windowId: widget.windowId,
               settingsOpen: _settingsOpen,
               onNewTab: _openTerminal,
               onSplitRight: () => _split(SplitAxis.horizontal),
@@ -247,6 +304,7 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
               _closeSelectedTab(),
         },
         child: TerminalWorkspacePage(
+          windowId: widget.windowId,
           onAppKeyEvent: _handleFocusedTerminalKeyEvent,
           onSelectNextTab: _selectNextTab,
           onSelectPaneNumber: _selectPaneNumber,
@@ -261,6 +319,7 @@ class _MaidTermAppState extends ConsumerState<MaidTermApp> {
 /// live, without re-creating the route.
 class _FramePage extends ConsumerWidget {
   const _FramePage({
+    required this.windowId,
     required this.settingsOpen,
     required this.child,
     required this.onNewTab,
@@ -271,6 +330,7 @@ class _FramePage extends ConsumerWidget {
     required this.onSettings,
   });
 
+  final String windowId;
   final ValueListenable<bool> settingsOpen;
   final Widget child;
   final VoidCallback onNewTab;
@@ -287,6 +347,7 @@ class _FramePage extends ConsumerWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: settingsOpen,
       builder: (context, settingsOpen, _) => MaidTermWindowScaffold(
+        windowId: windowId,
         windowTransparency: settings?.windowTransparency ?? 0.0,
         title: settingsOpen ? 'settingsTitle'.tr() : 'title'.tr(),
         menuButton: showMenu

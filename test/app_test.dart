@@ -1,40 +1,14 @@
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
-import 'package:maidterm_app/app.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:maidterm_app/workspace/terminal_workspace.dart';
-import 'package:maidterm_app/shell/local_shell_session.dart';
-
-import 'package:maidterm_app/workspace/terminal_workspace_page.dart';
 import 'package:maidterm_app/settings/settings_page.dart';
+import 'package:maidterm_app/workspace/terminal_workspace.dart';
+import 'package:maidterm_app/workspace/terminal_workspace_page.dart';
 
-/// Loads the real translation JSON files synchronously from disk.
-///
-/// easy_localization's default [RootBundleAssetLoader] goes through the
-/// platform messenger, which does not progress in the fake-async zone of a
-/// widget test once a previous test's EasyLocalization tree has been torn
-/// down. Reading the files directly keeps the tests hermetic and real.
-class _TestAssetLoader extends AssetLoader {
-  final String basePath;
-  const _TestAssetLoader(this.basePath);
-
-  @override
-  Future<Map<String, dynamic>?> load(String path, Locale locale) async {
-    final file = File(
-      '$basePath/${locale.toStringWithSeparator(separator: '-')}.json',
-    );
-    if (!file.existsSync()) return null;
-    return jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-  }
-}
+import 'support/window_harness.dart';
 
 void main() {
   setUpAll(() async {
@@ -44,37 +18,9 @@ void main() {
     EasyLocalization.logger.enableBuildModes = [];
   });
 
-  Widget app() {
-    return EasyLocalization(
-      supportedLocales: const [Locale('en', 'US')],
-      path: 'assets/translations',
-      fallbackLocale: const Locale('en', 'US'),
-      useFallbackTranslations: true,
-      assetLoader: const _TestAssetLoader('assets/translations'),
-      child: ProviderScope(
-        overrides: [
-          localShellSessionFactoryProvider.overrideWithValue(
-            ({String? workingDirectory}) => LocalShellSession(
-              workingDirectory: workingDirectory,
-              autoStart: false,
-            ),
-          ),
-        ],
-        child: const MaidTermApp(),
-      ),
-    );
-  }
-
   testWidgets('command comma opens settings', (tester) async {
-    await tester.pumpWidget(app());
-    await tester.pumpAndSettle();
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    );
-    final session = container
-        .read(terminalWorkspaceProvider)
-        .selectedTab!
-        .session;
+    final host = await pumpAppWindow(tester);
+    final session = host.focusedTerminal.session;
     final emitted = <int>[];
     session.controller.onOutput = emitted.addAll;
 
@@ -91,8 +37,10 @@ void main() {
   });
 
   testWidgets('terminal shortcuts manage tabs and panes', (tester) async {
-    await tester.pumpWidget(app());
-    await tester.pumpAndSettle();
+    final host = await pumpAppWindow(tester);
+    TerminalWorkspaceState state() => host.container.read(
+      terminalWorkspaceProvider(host.windowId),
+    );
     expect(find.byType(TerminalWorkspacePage), findsOneWidget);
 
     Future<void> press(LogicalKeyboardKey key, {bool shift = false}) async {
@@ -108,46 +56,35 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
     }
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    );
-    final firstSession = container
-        .read(terminalWorkspaceProvider)
-        .selectedTab!
-        .session;
+    final firstSession = host.focusedTerminal.session;
     final emitted = <int>[];
     firstSession.controller.onOutput = emitted.addAll;
     await press(LogicalKeyboardKey.keyT);
-    expect(container.read(terminalWorkspaceProvider).tabs, hasLength(2));
+    expect(state().tabs, hasLength(2));
     expect(emitted, isEmpty);
 
-    final secondSession = container
-        .read(terminalWorkspaceProvider)
-        .selectedTab!
-        .session;
+    final secondSession = host.focusedTerminal.session;
     secondSession.controller.onOutput = emitted.addAll;
 
     await press(LogicalKeyboardKey.keyD);
     await press(LogicalKeyboardKey.keyD, shift: true);
-    expect(container.read(terminalWorkspaceProvider).panes, hasLength(3));
+    expect(state().panes, hasLength(3));
     expect(emitted, isEmpty);
 
     // Cmd+W closes the focused pane, not the whole tab group.
     await press(LogicalKeyboardKey.keyW);
-    expect(container.read(terminalWorkspaceProvider).tabs, hasLength(2));
-    expect(container.read(terminalWorkspaceProvider).panes, hasLength(2));
+    expect(state().tabs, hasLength(2));
+    expect(state().panes, hasLength(2));
 
     // Cmd+Shift+W closes the entire selected tab.
     await press(LogicalKeyboardKey.keyW, shift: true);
-    expect(container.read(terminalWorkspaceProvider).tabs, hasLength(1));
+    expect(state().tabs, hasLength(1));
   });
 
   testWidgets('Ctrl+Tab cycles tabs, Cmd+number selects panes', (tester) async {
-    await tester.pumpWidget(app());
-    await tester.pumpAndSettle();
-
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
+    final host = await pumpAppWindow(tester);
+    TerminalWorkspaceState state() => host.container.read(
+      terminalWorkspaceProvider(host.windowId),
     );
 
     Future<void> press(
@@ -163,63 +100,41 @@ void main() {
 
     await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.keyT);
     await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.keyD);
-    final firstTabId = container.read(terminalWorkspaceProvider).tabs.first.id;
-    final secondTab = container.read(terminalWorkspaceProvider).selectedTab!;
+    final firstTabId = state().tabs.first.id;
+    final secondTab = state().selectedTab!;
     final secondTabPaneIds = secondTab.layout.paneIds.toList();
 
     // Cmd+1 selects the first pane in the selected tab.
     await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.digit1);
-    expect(
-      container.read(terminalWorkspaceProvider).focusedPaneId,
-      secondTabPaneIds.first,
-    );
+    expect(state().focusedPaneId, secondTabPaneIds.first);
 
     // Cmd+Tab is intentionally not a navigation shortcut.
     await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.tab);
-    expect(
-      container.read(terminalWorkspaceProvider).selectedTabId,
-      secondTab.id,
-    );
-    expect(
-      container.read(terminalWorkspaceProvider).focusedPaneId,
-      secondTabPaneIds.first,
-    );
+    expect(state().selectedTabId, secondTab.id);
+    expect(state().focusedPaneId, secondTabPaneIds.first);
 
     // Ctrl+Tab switches top-level tabs and preserves each tab's focused pane.
     await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.tab);
-    expect(container.read(terminalWorkspaceProvider).selectedTabId, firstTabId);
+    expect(state().selectedTabId, firstTabId);
     expect(
-      container.read(terminalWorkspaceProvider).focusedPaneId,
-      container.read(terminalWorkspaceProvider).tabs.first.layout.paneIds.first,
+      state().focusedPaneId,
+      state().tabs.first.layout.paneIds.first,
     );
     await press(LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.tab);
-    expect(
-      container.read(terminalWorkspaceProvider).selectedTabId,
-      secondTab.id,
-    );
-    expect(
-      container.read(terminalWorkspaceProvider).focusedPaneId,
-      secondTabPaneIds.first,
-    );
+    expect(state().selectedTabId, secondTab.id);
+    expect(state().focusedPaneId, secondTabPaneIds.first);
 
     // Cmd+2 selects the second pane in the selected tab.
     await press(LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.digit2);
-    expect(
-      container.read(terminalWorkspaceProvider).selectedTabId,
-      secondTab.id,
-    );
-    expect(
-      container.read(terminalWorkspaceProvider).focusedPaneId,
-      secondTabPaneIds.last,
-    );
+    expect(state().selectedTabId, secondTab.id);
+    expect(state().focusedPaneId, secondTabPaneIds.last);
   });
 
   testWidgets('title bar menu opens and acts on the workspace', (tester) async {
     SharedPreferences.setMockInitialValues({
       'terminal.showTitleBarMenuButton': true,
     });
-    await tester.pumpWidget(app());
-    await tester.pumpAndSettle();
+    final host = await pumpAppWindow(tester);
 
     // The burger renders above the app routes and its popup has an Overlay
     // (regression: title-bar chrome previously had neither Overlay nor
@@ -235,9 +150,9 @@ void main() {
     await tester.tap(find.text('menuNewTab'.tr()));
     await tester.pumpAndSettle();
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
+    expect(
+      host.container.read(terminalWorkspaceProvider(host.windowId)).tabs,
+      hasLength(2),
     );
-    expect(container.read(terminalWorkspaceProvider).tabs, hasLength(2));
   });
 }

@@ -1,46 +1,25 @@
-import 'package:desktop_multi_window/desktop_multi_window.dart';
+// ignore_for_file: invalid_use_of_internal_member, implementation_imports
+
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/src/foundation/_features.dart' show isWindowingEnabled;
+import 'package:flutter/widgets.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:island_ui_foundation/island_ui_foundation.dart';
-import 'package:window_manager/window_manager.dart';
 
 import 'package:maidterm_app/app.dart';
 import 'package:maidterm_app/notifications/app_notifications.dart';
-import 'package:maidterm_app/window_runtime.dart';
 
 Future<void> main(List<String> args) async {
+  // All windows are views of one engine: they are created from Dart through
+  // Flutter's experimental multi-window API, which the stable channel still
+  // gates behind a build-time feature flag.
+  isWindowingEnabled = true;
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
   EasyLocalization.logger.enableBuildModes = [];
   await AppNotifications.initialize();
 
-  var launch = const WindowLaunchData.main();
-  if (DesktopWindowFrame.isPlatformDesktop) {
-    final currentWindow = await WindowController.fromCurrentEngine();
-    launch = WindowLaunchData.fromEntrypointArgs(currentWindow, args);
-  }
-
-  if (DesktopWindowFrame.isPlatformDesktop) {
-    await windowManager.ensureInitialized();
-    const windowOptions = WindowOptions(
-      size: Size(1100, 720),
-      minimumSize: Size(480, 320),
-      center: true,
-      titleBarStyle: TitleBarStyle.hidden,
-      windowButtonVisibility: true,
-    );
-    await windowManager.waitUntilReadyToShow(windowOptions, () async {
-      if (!launch.hiddenAtLaunch) {
-        await windowManager.show();
-        await windowManager.focus();
-      }
-    });
-  }
-
-  runApp(
+  runWidget(
     ProviderScope(
-      overrides: [windowLaunchDataProvider.overrideWithValue(launch)],
       child: EasyLocalization(
         supportedLocales: const [
           Locale('en', 'US'),
@@ -50,7 +29,7 @@ Future<void> main(List<String> args) async {
         path: 'assets/translations',
         fallbackLocale: const Locale('en', 'US'),
         useFallbackTranslations: true,
-        child: const MaidTermApp(),
+        child: const MaidTermWindowsHost(),
       ),
     ),
   );

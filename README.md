@@ -43,8 +43,23 @@ handling, graphics protocols, input encoding, and painting — lives in the
 - [hooks_riverpod](https://pub.dev/packages/hooks_riverpod) — state
 - [island_ui_foundation](https://src.solsynth.dev/SoSYS/Solian) /
   [material_ui](https://pub.dev/packages/material_ui) — theming and widgets
-- [window_manager](https://pub.dev/packages/window_manager) — desktop window
-  frame
+- [nativeapi](https://pub.dev/packages/nativeapi_flutter) — window drag
+  sessions that track the cursor across windows
+
+## Windows
+
+A window is a view of the single Flutter engine, created from Dart through
+Flutter's multi-window API: `WorkspaceWindowsController`
+(`lib/windows/`) owns them and each window's `TerminalWorkspaceNotifier`
+owns its tabs and PTY sessions. Because every window shares one engine,
+moving a tab between windows reparents its widget subtree — the shell keeps
+running and its scrollback and output stream come along.
+
+Tabs are dragged with `na.WindowDragSession`, which reports the global cursor
+even while the pointer is over another window's view. Dropping a tab on
+another strip moves it there; dragging one far enough off its own strip
+detaches it into a new window. Where the platform cannot report the cursor
+(Wayland), tab presses fall back to reordering inside the strip.
 
 ## Getting started
 

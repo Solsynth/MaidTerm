@@ -1,17 +1,15 @@
 import 'dart:convert';
 
-import 'package:desktop_drop/desktop_drop.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
+import 'package:nativeapi_flutter/nativeapi_flutter.dart' as na;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:maidterm_app/shell/drop_paths.dart';
-import 'package:maidterm_app/shell/local_shell_session.dart';
-import 'package:maidterm_app/workspace/terminal_workspace.dart';
-import 'package:maidterm_app/workspace/terminal_workspace_page.dart';
+
+import 'support/window_harness.dart';
 
 void main() {
   setUpAll(() async {
@@ -20,28 +18,6 @@ void main() {
     await EasyLocalization.ensureInitialized();
     EasyLocalization.logger.enableBuildModes = [];
   });
-
-  /// ProviderScope with sessions that never spawn a pty (plugin frameworks
-  /// are not linked under `flutter test`).
-  Widget buildWorkspace() {
-    return EasyLocalization(
-      supportedLocales: const [Locale('en', 'US')],
-      path: 'assets/translations',
-      fallbackLocale: const Locale('en', 'US'),
-      useFallbackTranslations: true,
-      child: ProviderScope(
-        overrides: [
-          localShellSessionFactoryProvider.overrideWithValue(
-            ({String? workingDirectory}) => LocalShellSession(
-              workingDirectory: workingDirectory,
-              autoStart: false,
-            ),
-          ),
-        ],
-        child: const MaterialApp(home: TerminalWorkspacePage()),
-      ),
-    );
-  }
 
   group('escapeDropPath', () {
     test('leaves safe absolute paths bare', () {
@@ -92,27 +68,17 @@ void main() {
   testWidgets('OS file drop inserts shell-escaped paths into the terminal', (
     tester,
   ) async {
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
-
-    final page = find.byType(TerminalWorkspacePage);
-    final container = ProviderScope.containerOf(tester.element(page));
-    final session = container
-        .read(terminalWorkspaceProvider)
-        .selectedTab!
-        .session;
+    final host = await pumpWorkspaceWindow(tester);
+    final session = host.focusedTerminal.session;
     final emitted = <int>[];
     session.controller.onOutput = emitted.addAll;
 
-    final dropTarget = tester.widget<DropTarget>(find.byType(DropTarget));
-    dropTarget.onDragDone!(
-      DropDoneDetails(
-        files: [
-          DropItemFile('/Users/me/My Documents/a.txt'),
-          DropItemFile('/tmp/plain.txt'),
-        ],
+    final dropTarget = tester.widget<na.DropRegion>(find.byType(na.DropRegion));
+    dropTarget.onDropped!(
+      const na.DropRegionDropDetails(
         localPosition: Offset.zero,
-        globalPosition: Offset.zero,
+        filePaths: ['/Users/me/My Documents/a.txt', '/tmp/plain.txt'],
+        text: null,
       ),
     );
 
@@ -125,25 +91,18 @@ void main() {
   testWidgets('OS file drop preserves bracketed paste for image-aware TUIs', (
     tester,
   ) async {
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
-
-    final page = find.byType(TerminalWorkspacePage);
-    final container = ProviderScope.containerOf(tester.element(page));
-    final session = container
-        .read(terminalWorkspaceProvider)
-        .selectedTab!
-        .session;
+    final host = await pumpWorkspaceWindow(tester);
+    final session = host.focusedTerminal.session;
     final emitted = <int>[];
     session.controller.onOutput = emitted.addAll;
     session.controller.write(utf8.encode('\x1b[?2004h'));
 
-    final dropTarget = tester.widget<DropTarget>(find.byType(DropTarget));
-    dropTarget.onDragDone!(
-      DropDoneDetails(
-        files: [DropItemFile('/tmp/screenshot.png')],
+    final dropTarget = tester.widget<na.DropRegion>(find.byType(na.DropRegion));
+    dropTarget.onDropped!(
+      const na.DropRegionDropDetails(
         localPosition: Offset.zero,
-        globalPosition: Offset.zero,
+        filePaths: ['/tmp/screenshot.png'],
+        text: null,
       ),
     );
 
@@ -151,24 +110,17 @@ void main() {
   });
 
   testWidgets('empty drop inserts nothing', (tester) async {
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
-
-    final page = find.byType(TerminalWorkspacePage);
-    final container = ProviderScope.containerOf(tester.element(page));
-    final session = container
-        .read(terminalWorkspaceProvider)
-        .selectedTab!
-        .session;
+    final host = await pumpWorkspaceWindow(tester);
+    final session = host.focusedTerminal.session;
     final emitted = <int>[];
     session.controller.onOutput = emitted.addAll;
 
-    final dropTarget = tester.widget<DropTarget>(find.byType(DropTarget));
-    dropTarget.onDragDone!(
-      DropDoneDetails(
-        files: const [],
+    final dropTarget = tester.widget<na.DropRegion>(find.byType(na.DropRegion));
+    dropTarget.onDropped!(
+      const na.DropRegionDropDetails(
         localPosition: Offset.zero,
-        globalPosition: Offset.zero,
+        filePaths: [],
+        text: null,
       ),
     );
 
@@ -176,16 +128,13 @@ void main() {
   });
 
   testWidgets('drag hover shows and hides the drop highlight', (tester) async {
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    await pumpWorkspaceWindow(tester);
 
-    final dropTarget = tester.widget<DropTarget>(find.byType(DropTarget));
+    final dropTarget = tester.widget<na.DropRegion>(find.byType(na.DropRegion));
     final highlight = find.byKey(const ValueKey('file-drop-highlight'));
     expect(highlight, findsNothing);
 
-    dropTarget.onDragEntered!(
-      DropEventDetails(localPosition: Offset.zero, globalPosition: Offset.zero),
-    );
+    dropTarget.onDragEntered!(Offset.zero);
     await tester.pump();
     expect(highlight, findsOneWidget);
 
@@ -200,15 +149,11 @@ void main() {
     expect(highlightSize.width, terminalSize.width);
     expect(highlightSize.height, terminalSize.height);
 
-    dropTarget.onDragExited!(
-      DropEventDetails(localPosition: Offset.zero, globalPosition: Offset.zero),
-    );
+    dropTarget.onDragExited!();
     await tester.pump();
     expect(highlight, findsNothing);
 
-    dropTarget.onDragExited!(
-      DropEventDetails(localPosition: Offset.zero, globalPosition: Offset.zero),
-    );
+    dropTarget.onDragExited!();
     await tester.pump();
     expect(highlight, findsNothing);
   });

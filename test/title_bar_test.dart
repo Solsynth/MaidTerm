@@ -1,23 +1,34 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maidterm_app/theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'support/window_harness.dart';
+
 void main() {
-  Widget wrap(Widget? menuButton) {
-    return MaterialApp(
-      home: Scaffold(
-        body: MaidTermWindowScaffold(
-          title: 'MaidTerm',
-          menuButton: menuButton,
-          child: const SizedBox.expand(),
-        ),
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    await EasyLocalization.ensureInitialized();
+    EasyLocalization.logger.enableBuildModes = [];
+  });
+
+  Future<void> wrap(WidgetTester tester, Widget? menuButton) => pumpHarness(
+    tester,
+    Scaffold(
+      body: MaidTermWindowScaffold(
+        windowId: testWindowId,
+        title: 'MaidTerm',
+        menuButton: menuButton,
+        child: const SizedBox.expand(),
       ),
-    );
-  }
+    ),
+  );
 
   testWidgets('without a menu button the title renders as a plain label',
       (tester) async {
-    await tester.pumpWidget(wrap(null));
-    await tester.pumpAndSettle();
+    await wrap(tester, null);
 
     expect(find.text('MaidTerm'), findsOneWidget);
     // No centering wrapper: the label keeps island's default placement.
@@ -32,15 +43,13 @@ void main() {
 
   testWidgets('with a menu button the title is centered and the button shown',
       (tester) async {
-    await tester.pumpWidget(
-      wrap(
-        IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () {},
-        ),
+    await wrap(
+      tester,
+      IconButton(
+        icon: const Icon(Icons.menu),
+        onPressed: () {},
       ),
     );
-    await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.menu), findsOneWidget);
     // The title is wrapped in a Center when the button layout is active.

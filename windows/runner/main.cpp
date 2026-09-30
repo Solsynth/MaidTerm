@@ -1,8 +1,8 @@
 #include <flutter/dart_project.h>
-#include <flutter/flutter_view_controller.h>
+#include <flutter/flutter_engine.h>
+#include <flutter/generated_plugin_registrant.h>
 #include <windows.h>
 
-#include "flutter_window.h"
 #include "utils.h"
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
@@ -24,13 +24,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
-  FlutterWindow window(project);
-  Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
-  if (!window.Create(L"terminal", origin, size)) {
-    return EXIT_FAILURE;
-  }
-  window.SetQuitOnClose(true);
+  // One engine, no window of our own: every terminal window is a view of this
+  // engine, created from Dart through Flutter's multi-window API.
+  auto const engine{std::make_shared<flutter::FlutterEngine>(project)};
+  RegisterPlugins(engine.get());
+  engine->Run();
 
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {

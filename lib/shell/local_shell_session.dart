@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:maidpty/maidpty.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
-import 'package:window_manager/window_manager.dart';
 
 import 'package:maidterm_app/notifications/app_notifications.dart';
 import 'package:maidterm_app/shell/process_title_monitor.dart';
@@ -86,18 +85,18 @@ class LocalShellSession {
   LocalShellSession({
     String? shell,
     String? workingDirectory,
-    int? sessionId,
     bool autoStart = true,
     bool cursorBlink = true,
     maidterm.CursorShape cursorStyle = maidterm.CursorShape.block,
     ProcessTitleMonitor? processMonitor,
     bool Function()? runningPrograms,
     String? Function()? foregroundProgramName,
+    bool Function()? isAppFocused,
   }) : _fallbackTitle = _shellNameOf(shell ?? _defaultShell()),
        _spawnCwd = _normalizeWorkingDirectory(workingDirectory),
-       _attachedSession = sessionId != null,
        _runningProgramsCheck = runningPrograms,
-       _foregroundProgramNameCheck = foregroundProgramName {
+       _foregroundProgramNameCheck = foregroundProgramName,
+       _isAppFocused = isAppFocused ?? _neverFocused {
     _monitor = processMonitor;
     _controller = maidterm.TerminalController(
       config: maidterm.TerminalConfig(
@@ -118,17 +117,15 @@ class LocalShellSession {
     _controller.onTitleChanged = _onTitleChanged;
     _controller.onPwdChanged = _onPwdChanged;
     if (!autoStart) return;
-    final pty = _pty = sessionId == null
-        ? Pty.start(
-            shell ?? _defaultShell(),
-            rows: 24,
-            columns: 80,
-            workingDirectory: _spawnCwd,
-            // maidpty only forwards a fixed env set; COLORTERM must be opt-in
-            // or truecolor clients (fastfetch, vim, bat) silently downgrade.
-            environment: _shellEnvironment(),
-          )
-        : Pty.attach(sessionId);
+    final pty = _pty = Pty.start(
+      shell ?? _defaultShell(),
+      rows: 24,
+      columns: 80,
+      workingDirectory: _spawnCwd,
+      // maidpty only forwards a fixed env set; COLORTERM must be opt-in
+      // or truecolor clients (fastfetch, vim, bat) silently downgrade.
+      environment: _shellEnvironment(),
+    );
     _ptyPid = pty.pid;
     _subscriptions.add(pty.output.listen(writeOutput));
     unawaited(pty.exitCode.then((_) => _handlePtyExit()));
@@ -140,18 +137,9 @@ class LocalShellSession {
     }
   }
   Pty? _pty;
-  final bool _attachedSession;
-
-  /// Stable native session ID used for cross-window attachment.
-  int? get sessionId => _pty?.sessionId;
 
   /// Operating-system PID of the shell backing this PTY.
   int? get ptyPid => _ptyPid;
-
-  /// Re-emits the destination viewport size to an attached PTY.
-  void refreshResize() {
-    if (_attachedSession) _controller.refreshResize();
-  }
 
   /// Called when the shell process exits on its own.
   VoidCallback? onExit;
@@ -164,6 +152,11 @@ class LocalShellSession {
   /// Test seam: overrides the live process-table running-programs check.
   final bool Function()? _runningProgramsCheck;
   final String? Function()? _foregroundProgramNameCheck;
+
+  /// Test seam: reports whether the app is in the foreground, so terminal
+  /// notifications are muted while the user is looking at them.
+  final bool Function() _isAppFocused;
+  static bool _neverFocused() => false;
   late final maidterm.TerminalController _controller;
   final List<StreamSubscription<Object?>> _subscriptions = [];
 
@@ -309,7 +302,7 @@ class LocalShellSession {
   }
 
   Future<void> _handleNotification(String title, String body) async {
-    if (await windowManager.isFocused()) return;
+    if (_isAppFocused()) return;
     await AppNotifications.show(
       title: title.trim().isEmpty ? 'MaidTerm' : title.trim(),
       body: body,

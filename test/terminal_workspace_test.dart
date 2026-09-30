@@ -5,10 +5,8 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'package:island_ui_foundation/island_ui_foundation.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,7 +14,8 @@ import 'package:maidterm_app/shell/local_shell_session.dart';
 import 'package:maidterm_app/workspace/session_layout.dart';
 import 'package:maidterm_app/workspace/terminal_workspace.dart';
 import 'package:maidterm_app/settings/background_image.dart';
-import 'package:maidterm_app/workspace/terminal_workspace_page.dart';
+
+import 'support/window_harness.dart';
 
 void main() {
   setUpAll(() async {
@@ -26,28 +25,6 @@ void main() {
     EasyLocalization.logger.enableBuildModes = [];
   });
 
-  /// ProviderScope with sessions that never spawn a pty (plugin frameworks
-  /// are not linked under `flutter test`).
-  Widget buildWorkspace() {
-    return EasyLocalization(
-      supportedLocales: const [Locale('en', 'US')],
-      path: 'assets/translations',
-      fallbackLocale: const Locale('en', 'US'),
-      useFallbackTranslations: true,
-      child: ProviderScope(
-        overrides: [
-          localShellSessionFactoryProvider.overrideWithValue(
-            ({String? workingDirectory}) => LocalShellSession(
-              workingDirectory: workingDirectory,
-              autoStart: false,
-            ),
-          ),
-        ],
-        child: const MaterialApp(home: TerminalWorkspacePage()),
-      ),
-    );
-  }
-
   testWidgets('applies persisted font settings to the startup terminal', (
     tester,
   ) async {
@@ -56,8 +33,7 @@ void main() {
       'terminal.fontSize': 18.0,
     });
 
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    await pumpWorkspaceWindow(tester);
 
     final terminal = tester.widget<maidterm.TerminalView>(
       find.byType(maidterm.TerminalView),
@@ -67,18 +43,9 @@ void main() {
   });
 
   testWidgets('shows output activity in the terminal tab icon', (tester) async {
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    final host = await pumpWorkspaceWindow(tester);
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    );
-    final session = container
-        .read(terminalWorkspaceProvider)
-        .selectedTab!
-        .focusedPane!
-        .tab
-        .session;
+    final session = host.focusedTerminal.session;
 
     expect(find.byIcon(Symbols.terminal), findsOneWidget);
     session.writeOutput(Uint8List.fromList(utf8.encode('output')));
@@ -104,15 +71,9 @@ void main() {
           '{"left":5,"top":6,"right":7,"bottom":8}',
     });
 
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    final host = await pumpWorkspaceWindow(tester);
 
-    final page = find.byType(TerminalWorkspacePage);
-    final container = ProviderScope.containerOf(tester.element(page));
-    final session = container
-        .read(terminalWorkspaceProvider)
-        .selectedTab!
-        .session;
+    final session = host.focusedTerminal.session;
     maidterm.TerminalView currentTerminal() => tester
         .widget<maidterm.TerminalView>(find.byType(maidterm.TerminalView));
 
@@ -124,12 +85,12 @@ void main() {
 
     // A TUI canvas fill (explicit background across the grid) switches the
     // pane into its full-screen margins.
-    session.session.setVisualFullScreen(true);
+    session.setVisualFullScreen(true);
     await tester.pump();
     expect(currentTerminal().padding, const EdgeInsets.fromLTRB(5, 6, 7, 8));
 
     session.controller.write(utf8.encode('\x1b[?1049l'));
-    session.session.setVisualFullScreen(false);
+    session.setVisualFullScreen(false);
     await tester.pump();
     expect(currentTerminal().padding, const EdgeInsets.fromLTRB(1, 2, 3, 4));
   });
@@ -139,8 +100,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(1100, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    await pumpWorkspaceWindow(tester);
 
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
@@ -150,8 +110,7 @@ void main() {
   testWidgets('terminal pane backing fills the full pane', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1100, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    await pumpWorkspaceWindow(tester);
 
     expect(
       tester.getSize(find.byKey(const ValueKey('terminal-pane-backdrop'))),
@@ -177,8 +136,7 @@ void main() {
       SharedPreferences.setMockInitialValues({
         'terminal.tabBarPosition': entry.key,
       });
-      await tester.pumpWidget(buildWorkspace());
-      await tester.pumpAndSettle();
+      await pumpWorkspaceWindow(tester);
 
       expect(
         tester.getSize(find.byType(maidterm.TerminalView)),
@@ -216,8 +174,7 @@ void main() {
       SharedPreferences.setMockInitialValues({
         'terminal.tabBarPosition': entry.key,
       });
-      await tester.pumpWidget(buildWorkspace());
-      await tester.pumpAndSettle();
+      await pumpWorkspaceWindow(tester);
 
       final corner = entry.value;
       if (corner == null) {
@@ -256,8 +213,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({'terminal.tabBarPosition': 'top'});
 
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    await pumpWorkspaceWindow(tester);
 
     // The top bar never compacts: every chip keeps its close button.
     expect(
@@ -276,13 +232,9 @@ void main() {
       'terminal.tabBarWidth': 240.0,
     });
 
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    final host = await pumpWorkspaceWindow(tester);
 
     final tabBar = find.byKey(const ValueKey('workspace-tab-bar'));
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    );
     expect(tester.getSize(tabBar), const Size(240, 640));
     // Non-compact: chips render titles with close buttons.
     expect(find.byTooltip('workspaceCloseTab'.tr()), findsWidgets);
@@ -297,10 +249,10 @@ void main() {
     expect(tester.getSize(tabBar), const Size(48, 640));
     // Compact: chips collapse to icon-only, close buttons hidden.
     expect(find.byTooltip('workspaceCloseTab'.tr()), findsNothing);
-    container.read(terminalWorkspaceProvider.notifier).openTerminal();
+    host.notifier.openTerminal();
     await tester.pumpAndSettle();
 
-    final tabs = container.read(terminalWorkspaceProvider).tabs;
+    final tabs = host.tabs;
     final firstTabRect = tester.getRect(
       find.byKey(ValueKey('pane-tab-${tabs.first.focusedPane!.tab.id}')),
     );
@@ -325,8 +277,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({'terminal.tabBarPosition': 'left'});
 
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    await pumpWorkspaceWindow(tester);
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
       const Size(900, 620),
@@ -350,8 +301,7 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    await pumpWorkspaceWindow(tester);
     expect(
       tester.getSize(find.byType(maidterm.TerminalView)),
       const Size(840, 620),
@@ -363,15 +313,8 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({'terminal.tabBarPosition': 'left'});
 
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    );
-    final session = container
-        .read(terminalWorkspaceProvider)
-        .selectedTab!
-        .session;
+    final host = await pumpWorkspaceWindow(tester);
+    final session = host.focusedTerminal.session;
     final output = <Object>[];
     session.controller.onOutput = output.add;
     final terminal = find.byType(maidterm.TerminalView);
@@ -410,16 +353,11 @@ void main() {
   });
   testWidgets('switching tabs restores terminal focus', (tester) async {
     SharedPreferences.setMockInitialValues({'terminal.tabBarPosition': 'left'});
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    final host = await pumpWorkspaceWindow(tester);
 
-    final page = find.byType(TerminalWorkspacePage);
-    final container = ProviderScope.containerOf(tester.element(page));
-    final notifier = container.read(terminalWorkspaceProvider.notifier);
-    notifier.openTerminal();
+    host.notifier.openTerminal();
     await tester.pumpAndSettle();
-    final state = container.read(terminalWorkspaceProvider);
-    notifier.selectTab(state.tabs.first.id);
+    host.notifier.selectTab(host.tabs.first.id);
     await tester.pumpAndSettle();
 
     final terminal = find.byType(maidterm.TerminalView);
@@ -439,13 +377,8 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues({});
 
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
-    final page = find.byType(TerminalWorkspacePage);
-    final container = ProviderScope.containerOf(tester.element(page));
-    container
-        .read(terminalWorkspaceProvider.notifier)
-        .split(SplitAxis.horizontal);
+    final host = await pumpWorkspaceWindow(tester);
+    host.notifier.split(SplitAxis.horizontal);
     await tester.pumpAndSettle();
 
     bool hasFocus(Finder view) => find
@@ -457,8 +390,7 @@ void main() {
               node?.debugLabel == 'terminal-input' && (node?.hasFocus ?? false),
         );
 
-    final state = container.read(terminalWorkspaceProvider);
-    final panes = state.panes.values.toList();
+    final panes = host.state.panes.values.toList();
     final pane1 = panes.first;
     final pane2 = panes.last;
 
@@ -485,20 +417,14 @@ void main() {
     SharedPreferences.setMockInitialValues({
       'terminal.transparentBackground': true,
     });
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pumpAndSettle();
+    final host = await pumpWorkspaceWindow(tester);
 
     maidterm.TerminalView currentTerminal() => tester
         .widget<maidterm.TerminalView>(find.byType(maidterm.TerminalView));
     ColoredBox backdrop() => tester.widget<ColoredBox>(
       find.byKey(const ValueKey('terminal-pane-backdrop')),
     );
-    final page = find.byType(TerminalWorkspacePage);
-    final container = ProviderScope.containerOf(tester.element(page));
-    final session = container
-        .read(terminalWorkspaceProvider)
-        .selectedTab!
-        .session;
+    final session = host.focusedTerminal.session;
 
     expect(currentTerminal().theme?.backgroundOpacity, 0);
     expect(backdrop().color, Colors.transparent);
@@ -509,32 +435,25 @@ void main() {
     expect(backdrop().color, Colors.transparent);
 
     // A TUI canvas fill forces an opaque terminal surface.
-    session.session.setVisualFullScreen(true);
+    session.setVisualFullScreen(true);
     await tester.pump();
     expect(currentTerminal().theme?.backgroundOpacity, 1);
     expect(backdrop().color, const Color(0xFFFAFAFA));
   });
 
   testWidgets('starts with one terminal filling the window', (tester) async {
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pump();
+    await pumpWorkspaceWindow(tester);
 
     expect(find.byType(maidterm.TerminalView), findsOneWidget);
   });
 
   testWidgets('new tab adds a tab and switches to it', (tester) async {
-    await tester.pumpWidget(buildWorkspace());
+    final host = await pumpWorkspaceWindow(tester);
+
+    host.notifier.openTerminal();
     await tester.pump();
 
-    final notifier = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    ).read(terminalWorkspaceProvider.notifier);
-    notifier.openTerminal();
-    await tester.pump();
-
-    final state = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    ).read(terminalWorkspaceProvider);
+    final state = host.state;
     expect(state.tabs.length, 2);
     expect(state.selectedTab?.id, state.tabs.last.id);
   });
@@ -542,54 +461,30 @@ void main() {
   testWidgets('new tabs inherit the selected tab working directory', (
     tester,
   ) async {
-    final workingDirectories = <String?>[];
-    await tester.pumpWidget(
-      EasyLocalization(
-        supportedLocales: const [Locale('en', 'US')],
-        path: 'assets/translations',
-        fallbackLocale: const Locale('en', 'US'),
-        useFallbackTranslations: true,
-        child: ProviderScope(
-          overrides: [
-            localShellSessionFactoryProvider.overrideWithValue(({
-              String? workingDirectory,
-            }) {
-              workingDirectories.add(workingDirectory);
-              return LocalShellSession(
-                workingDirectory: workingDirectory ?? '/tmp/project',
-                autoStart: false,
-              );
-            }),
-          ],
-          child: const MaterialApp(home: TerminalWorkspacePage()),
-        ),
-      ),
+    final host = await pumpWorkspaceWindow(
+      tester,
+      workingDirectory: '/tmp/project',
     );
-    await tester.pump();
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
+    host.notifier.openTerminal();
+
+    // The second tab inherits the first tab's directory instead of the
+    // factory default.
+    expect(
+      host.tabs.map((tab) => tab.focusedPane!.tab.session.workingDirectory),
+      ['/tmp/project', '/tmp/project'],
     );
-    container.read(terminalWorkspaceProvider.notifier).openTerminal();
-
-    expect(workingDirectories, [null, '/tmp/project']);
   });
 
   testWidgets('split keeps panes inside the active top-level tab', (
     tester,
   ) async {
-    await tester.pumpWidget(buildWorkspace());
+    final host = await pumpWorkspaceWindow(tester);
+
+    host.notifier.split(SplitAxis.horizontal);
     await tester.pump();
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    );
-    container
-        .read(terminalWorkspaceProvider.notifier)
-        .split(SplitAxis.horizontal);
-    await tester.pump();
-
-    final state = container.read(terminalWorkspaceProvider);
+    final state = host.state;
     expect(state.layout?.isSplit, isTrue);
     expect(state.panes.length, 2);
     expect(state.tabs.length, 1);
@@ -604,18 +499,12 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({'terminal.tabBarPosition': 'left'});
-    await tester.pumpWidget(buildWorkspace());
+    final host = await pumpWorkspaceWindow(tester);
+
+    host.notifier.split(SplitAxis.horizontal);
     await tester.pumpAndSettle();
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    );
-    container
-        .read(terminalWorkspaceProvider.notifier)
-        .split(SplitAxis.horizontal);
-    await tester.pumpAndSettle();
-
-    final state = container.read(terminalWorkspaceProvider);
+    final state = host.state;
     expect(state.tabs, hasLength(1));
     expect(state.panes, hasLength(2));
     for (final pane in state.panes.values) {
@@ -623,14 +512,10 @@ void main() {
     }
   });
   testWidgets('closing the last tab shows the empty state', (tester) async {
-    await tester.pumpWidget(buildWorkspace());
-    await tester.pump();
+    final host = await pumpWorkspaceWindow(tester);
 
-    final notifier = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    ).read(terminalWorkspaceProvider.notifier);
-    notifier.closeTab(notifier.state.selectedTab!.id);
-    await tester.pump();
+    host.notifier.closeTab(host.state.selectedTab!.id);
+    await tester.pumpAndSettle();
 
     expect(find.byType(maidterm.TerminalView), findsNothing);
     expect(find.text('workspaceNewTerminal'.tr()), findsOneWidget);
@@ -707,29 +592,6 @@ void main() {
     0x82,
   ];
 
-  Widget buildWorkspaceWithImage(File imageFile) {
-    return EasyLocalization(
-      supportedLocales: const [Locale('en', 'US')],
-      path: 'assets/translations',
-      fallbackLocale: const Locale('en', 'US'),
-      useFallbackTranslations: true,
-      child: ProviderScope(
-        overrides: [
-          localShellSessionFactoryProvider.overrideWithValue(
-            ({String? workingDirectory}) => LocalShellSession(
-              workingDirectory: workingDirectory,
-              autoStart: false,
-            ),
-          ),
-          maidTermBackgroundImageProvider.overrideWith(
-            (ref) async => imageFile,
-          ),
-        ],
-        child: const MaterialApp(home: TerminalWorkspacePage()),
-      ),
-    );
-  }
-
   int imageLayers() => find
       .byWidgetPredicate(
         (widget) =>
@@ -749,8 +611,12 @@ void main() {
     await tester.runAsync(() => imageFile.writeAsBytes(transparentPng));
     addTearDown(() => tester.runAsync(() => imageFile.delete()));
 
-    await tester.pumpWidget(buildWorkspaceWithImage(imageFile));
-    await tester.pumpAndSettle();
+    await pumpWorkspaceWindow(
+      tester,
+      overrides: [
+        maidTermBackgroundImageProvider.overrideWith((ref) async => imageFile),
+      ],
+    );
 
     // Exactly one image layer, on the ground that spans the whole layout.
     expect(imageLayers(), 1);
@@ -805,15 +671,14 @@ void main() {
     await tester.runAsync(() => imageFile.writeAsBytes(transparentPng));
     addTearDown(() => tester.runAsync(() => imageFile.delete()));
 
-    await tester.pumpWidget(buildWorkspaceWithImage(imageFile));
-    await tester.pumpAndSettle();
-
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
+    final host = await pumpWorkspaceWindow(
+      tester,
+      overrides: [
+        maidTermBackgroundImageProvider.overrideWith((ref) async => imageFile),
+      ],
     );
-    container
-        .read(terminalWorkspaceProvider.notifier)
-        .split(SplitAxis.horizontal);
+
+    host.notifier.split(SplitAxis.horizontal);
     await tester.pumpAndSettle();
 
     // Still exactly one image across both panes — no per-pane copies.
@@ -841,8 +706,12 @@ void main() {
     await tester.runAsync(() => imageFile.writeAsBytes(transparentPng));
     addTearDown(() => tester.runAsync(() => imageFile.delete()));
 
-    await tester.pumpWidget(buildWorkspaceWithImage(imageFile));
-    await tester.pumpAndSettle();
+    await pumpWorkspaceWindow(
+      tester,
+      overrides: [
+        maidTermBackgroundImageProvider.overrideWith((ref) async => imageFile),
+      ],
+    );
 
     expect(imageLayers(), 0);
     final terminal = tester.widget<maidterm.TerminalView>(
@@ -859,52 +728,14 @@ void main() {
     );
   });
 
-  Widget buildWorkspaceWithRunningPrograms() {
-    return EasyLocalization(
-      supportedLocales: const [Locale('en', 'US')],
-      path: 'assets/translations',
-      fallbackLocale: const Locale('en', 'US'),
-      useFallbackTranslations: true,
-      child: ProviderScope(
-        overrides: [
-          localShellSessionFactoryProvider.overrideWithValue(
-            ({String? workingDirectory}) => LocalShellSession(
-              workingDirectory: workingDirectory,
-              autoStart: false,
-              runningPrograms: () => true,
-            ),
-          ),
-        ],
-        child: MaterialApp(
-          navigatorKey: _confirmNavigatorKey,
-          home: const TerminalWorkspacePage(),
-        ),
-      ),
-    );
-  }
-
   testWidgets('closing a pane with running programs asks for confirmation', (
     tester,
   ) async {
-    IslandUIFoundation.configureNavigator(_confirmNavigatorKey);
-    await tester.pumpWidget(buildWorkspaceWithRunningPrograms());
-    await tester.pumpAndSettle();
+    // The attention modal resolves its navigator from the mounted window app.
+    final host = await _pumpBusyWindow(tester);
+    final secondPaneId = host.state.panes.values.last.id;
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    );
-    container
-        .read(terminalWorkspaceProvider.notifier)
-        .split(SplitAxis.horizontal);
-    await tester.pumpAndSettle();
-
-    final secondPaneId = container
-        .read(terminalWorkspaceProvider)
-        .panes
-        .values
-        .last
-        .id;
-    container.read(terminalWorkspaceProvider.notifier).closePane(secondPaneId);
+    host.notifier.closePane(secondPaneId);
     await tester.pumpAndSettle();
 
     // The island_ui_foundation attention modal asks before closing.
@@ -913,51 +744,85 @@ void main() {
     // Cancelling keeps the pane.
     await tester.tap(find.text('commonCancel'.tr()));
     await tester.pumpAndSettle();
-    expect(container.read(terminalWorkspaceProvider).panes, hasLength(2));
+    expect(host.state.panes, hasLength(2));
 
     // Confirming closes it.
-    container.read(terminalWorkspaceProvider.notifier).closePane(secondPaneId);
+    host.notifier.closePane(secondPaneId);
     await tester.pumpAndSettle();
     expect(find.text('closeConfirmTitleSingle'.tr()), findsOneWidget);
     await tester.tap(find.text('commonClose'.tr()));
     await tester.pumpAndSettle();
-    expect(container.read(terminalWorkspaceProvider).panes, hasLength(1));
+    expect(host.state.panes, hasLength(1));
   });
 
   testWidgets('closing a tab with running panes asks for confirmation', (
     tester,
   ) async {
-    IslandUIFoundation.configureNavigator(_confirmNavigatorKey);
-    await tester.pumpWidget(buildWorkspaceWithRunningPrograms());
-    await tester.pumpAndSettle();
+    // See the pane test: the modal needs the window app's navigator.
+    final host = await _pumpBusyWindow(tester);
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(TerminalWorkspacePage)),
-    );
-    container
-        .read(terminalWorkspaceProvider.notifier)
-        .split(SplitAxis.horizontal);
-    await tester.pumpAndSettle();
-
-    container
-        .read(terminalWorkspaceProvider.notifier)
-        .closeTab(container.read(terminalWorkspaceProvider).selectedTabId!);
+    host.notifier.closeTab(host.state.selectedTabId!);
     await tester.pumpAndSettle();
 
     expect(find.text('closeConfirmTitleMany'.tr()), findsOneWidget);
     await tester.tap(find.text('commonCancel'.tr()));
     await tester.pumpAndSettle();
-    expect(container.read(terminalWorkspaceProvider).tabs, hasLength(1));
-    expect(container.read(terminalWorkspaceProvider).panes, hasLength(2));
+    expect(host.state.tabs, hasLength(1));
+    expect(host.state.panes, hasLength(2));
 
-    container
-        .read(terminalWorkspaceProvider.notifier)
-        .closeTab(container.read(terminalWorkspaceProvider).selectedTabId!);
+    host.notifier.closeTab(host.state.selectedTabId!);
     await tester.pumpAndSettle();
     await tester.tap(find.text('commonClose'.tr()));
     await tester.pumpAndSettle();
-    expect(container.read(terminalWorkspaceProvider).tabs, isEmpty);
+    expect(host.state.tabs, isEmpty);
   });
 }
 
-final _confirmNavigatorKey = GlobalKey<NavigatorState>();
+/// Pumps the window app with a single two-pane tab whose sessions always
+/// report a running program.
+///
+/// Busy sessions need a session factory the shared harness cannot override,
+/// so the tab is built here and adopted through the in-process attach path.
+/// The full window app is mounted because the attention modal resolves its
+/// navigator from it.
+Future<WorkspaceHost> _pumpBusyWindow(WidgetTester tester) async {
+  final host = await pumpAppWindow(tester);
+
+  // Drop the harness's idle tab, then adopt a busy split tab.
+  host.notifier.closeTab(host.state.selectedTab!.id);
+  await tester.pumpAndSettle();
+  host.notifier.attachTab(_busySplitTab());
+  await tester.pumpAndSettle();
+  return host;
+}
+
+TerminalWorkspaceTab _busySplitTab() {
+  LocalShellSession busySession() => LocalShellSession(
+    workingDirectory: null,
+    autoStart: false,
+    runningPrograms: () => true,
+  );
+  const firstPaneId = 'busy-pane-1';
+  const secondPaneId = 'busy-pane-2';
+  return TerminalWorkspaceTab(
+    id: 'busy-group',
+    panes: {
+      firstPaneId: TerminalPane(
+        id: firstPaneId,
+        tab: TerminalTab(id: 'busy-tab-1', session: busySession()),
+      ),
+      secondPaneId: TerminalPane(
+        id: secondPaneId,
+        tab: TerminalTab(id: 'busy-tab-2', session: busySession()),
+      ),
+    },
+    layout: splitPane(
+      layout: const PaneLayoutLeaf(firstPaneId),
+      focusedPaneId: firstPaneId,
+      newPaneId: secondPaneId,
+      axis: SplitAxis.horizontal,
+      splitId: 'busy-split',
+    ),
+    focusedPaneId: firstPaneId,
+  );
+}

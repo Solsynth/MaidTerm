@@ -4,8 +4,10 @@ import 'package:flutter/material.dart' as flutter;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'
     as flutter_localizations;
-import 'package:island_ui_foundation/island_ui_foundation.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:nativeapi_flutter/nativeapi_flutter.dart' as na;
+
+import 'windows/workspace_windows.dart';
 
 /// The application-wide Material theme. Keep feature widgets dependent on
 /// this shared foundation instead of creating local colour schemes or chrome.
@@ -44,15 +46,22 @@ ThemeData createMaidTermTheme(
 /// override, the legacy parts fall back to stock defaults and the title bar
 /// looks like a different app. This mirrors MaidKit's
 /// `MaidKitWindowScaffold`.
-class MaidTermWindowScaffold extends StatelessWidget {
+///
+/// The frame talks to its own window through
+/// [WorkspaceWindowsController] rather than a process-wide window handle,
+/// so every window of the app drags and closes itself.
+class MaidTermWindowScaffold extends ConsumerStatefulWidget {
   const MaidTermWindowScaffold({
     super.key,
+    required this.windowId,
     required this.child,
     this.title,
     this.menuButton,
     this.windowTransparency = 0.0,
   });
 
+  /// The window this frame belongs to.
+  final String windowId;
   final Widget child;
   final String? title;
 
@@ -65,12 +74,45 @@ class MaidTermWindowScaffold extends StatelessWidget {
   final double windowTransparency;
 
   @override
+  ConsumerState<MaidTermWindowScaffold> createState() =>
+      _MaidTermWindowScaffoldState();
+}
+
+class _MaidTermWindowScaffoldState
+    extends ConsumerState<MaidTermWindowScaffold> {
+  final FocusNode _keyboardFocusNode = FocusNode(
+    debugLabel: 'window-frame',
+    skipTraversal: true,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // Something has to own the keyboard before a terminal claims it, or the
+    // first shortcut of a fresh window is dropped.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _keyboardFocusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _keyboardFocusNode.dispose();
+    super.dispose();
+  }
+
+  na.Window? get _nativeWindow => ref
+      .read(workspaceWindowsProvider)
+      .windowById(widget.windowId)
+      ?.native;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return flutter.Theme(
       data: _createWindowFrameTheme(
         Theme.of(context),
-        windowTransparency: windowTransparency,
+        windowTransparency: widget.windowTransparency,
       ),
       child: flutter.Localizations.override(
         context: context,
@@ -86,7 +128,7 @@ class MaidTermWindowScaffold extends StatelessWidget {
           child: Theme(
             data: ThemeData(
               scaffoldBackgroundColor: theme.colorScheme.surface.withValues(
-                alpha: 1.0 - windowTransparency,
+                alpha: 1.0 - widget.windowTransparency,
               ),
               colorScheme:
                   ColorScheme.fromSeed(
@@ -94,27 +136,30 @@ class MaidTermWindowScaffold extends StatelessWidget {
                     brightness: theme.colorScheme.brightness,
                   ).copyWith(
                     surface: theme.colorScheme.surface.withValues(
-                      alpha: 1.0 - windowTransparency,
+                      alpha: 1.0 - widget.windowTransparency,
                     ),
                     // The frame paints the single backdrop tone; keep every
                     // surface variant identical so titlebar, ground, tab bar
                     // and status bar render one uniform color.
                     surfaceContainer: theme.colorScheme.surface.withValues(
-                      alpha: 1.0 - windowTransparency,
+                      alpha: 1.0 - widget.windowTransparency,
                     ),
                     onSurface: theme.colorScheme.onSurface,
                     onSurfaceVariant: theme.colorScheme.onSurfaceVariant,
                     outline: theme.colorScheme.outline,
                   ),
             ),
-            child: DesktopWindowFrame(
-              onClose: windowManager.destroy,
-              isDesktopPlatform: DesktopWindowFrame.isPlatformDesktop,
-              // NOTE: island's macOS title bar renders only the title and
-              // ignores additionalTitleBarActions; app actions live in the
-              // toolbar row inside the workspace instead.
-              title: _buildTitle(theme),
-              child: child,
+            child: Focus(
+              focusNode: _keyboardFocusNode,
+              child: Material(
+                color: Theme.of(context).colorScheme.surfaceContainer,
+                child: Column(
+                  children: [
+                    _buildTitleBar(context),
+                    Expanded(child: widget.child),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -122,17 +167,39 @@ class MaidTermWindowScaffold extends StatelessWidget {
     );
   }
 
+  /// The title bar. On macOS the content sits under the real (transparent)
+  /// title bar, so AppKit moves the window for drags that start there; on the
+  /// other platforms the title bar is hidden and the frame has to move the
+  /// window itself.
+  Widget _buildTitleBar(BuildContext context) {
+    final bar = SizedBox(
+      height: _titleBarHeight,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [_buildTitle(context)],
+      ),
+    );
+    if (Platform.isMacOS) return bar;
+    final native = _nativeWindow;
+    if (native == null) return bar;
+    return na.DragToMoveArea(window: native, child: bar);
+  }
+
   /// The title-bar content: a plain label, or — when [menuButton] is set —
   /// the label centered over a full-width bar with the button at the leading
-  /// edge. The full-width layout is required because island's macOS frame
-  /// centers whatever widget is passed as the title.
-  Widget _buildTitle(ThemeData theme) {
-    final text = Text(title ?? 'MaidTerm', style: theme.textTheme.labelLarge);
-    final button = menuButton;
+  /// edge. The full-width layout is required because the frame centers
+  /// whatever widget is passed as the title.
+  Widget _buildTitle(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = Text(
+      widget.title ?? 'MaidTerm',
+      style: theme.textTheme.labelLarge,
+    );
+    final button = widget.menuButton;
     if (button == null) return text;
     return SizedBox(
       width: double.infinity,
-      height: 32,
+      height: _titleBarHeight,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -140,7 +207,7 @@ class MaidTermWindowScaffold extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             // macOS traffic lights float over the leading ~70px of the
-            // hidden title bar; keep the menu button clear of them.
+            // transparent title bar; keep the menu button clear of them.
             child: Padding(
               padding: EdgeInsets.only(left: Platform.isMacOS ? 76 : 0),
               child: button,
@@ -151,6 +218,8 @@ class MaidTermWindowScaffold extends StatelessWidget {
     );
   }
 }
+
+const double _titleBarHeight = 32.0;
 
 /// Supplies the Flutter Material theme consumed by legacy widgets inside
 /// Island's window frame, derived from the modern app theme.

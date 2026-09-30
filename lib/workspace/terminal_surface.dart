@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:maidterm/maidterm.dart' as maidterm;
+import 'package:nativeapi_flutter/nativeapi_flutter.dart' as na;
 
 import '../settings/terminal_color_scheme.dart';
 import '../settings/terminal_fonts.dart';
@@ -17,11 +17,17 @@ class TerminalSurface extends ConsumerStatefulWidget {
   const TerminalSurface({
     super.key,
     required this.tab,
+    this.window,
     this.autofocus = true,
     this.onKeyEvent,
   });
 
   final TerminalTab tab;
+
+  /// Native window this terminal belongs to. Drops are routed per window, so
+  /// a multi-window app has to say which one it is; null on hosts without
+  /// native windows.
+  final na.Window? window;
   final bool autofocus;
   final FocusOnKeyEventCallback? onKeyEvent;
 
@@ -55,9 +61,8 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
   /// so image-aware TUIs can recognize image paths in bracketed paste data.
   /// The terminal keeps focus so the user can keep typing (or press Enter)
   /// right after the drop.
-  void _handleDrop(DropDoneDetails details) {
-    final paths = details.files
-        .map((file) => file.path)
+  void _handleDrop(na.DropRegionDropDetails details) {
+    final paths = details.filePaths
         .where((path) => path.isNotEmpty)
         .toList();
     if (paths.isEmpty) return;
@@ -72,7 +77,6 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
         _focusNode.requestFocus();
         widget.tab.session.controller.requestFocus();
       }
-      widget.tab.session.refreshResize();
     });
   }
 
@@ -190,10 +194,11 @@ class _TerminalSurfaceState extends ConsumerState<TerminalSurface> {
       valueListenable: widget.tab.session.isFullScreen,
       builder: (context, fullScreen, _) {
         final margin = fullScreen ? fullScreenMargin : normalMargin;
-        return DropTarget(
+        return na.DropRegion(
+          window: widget.window,
           onDragEntered: (_) => _setDragHovered(true),
-          onDragExited: (_) => _setDragHovered(false),
-          onDragDone: _handleDrop,
+          onDragExited: () => _setDragHovered(false),
+          onDropped: _handleDrop,
           child: Stack(
             children: [
               maidterm.TerminalView(

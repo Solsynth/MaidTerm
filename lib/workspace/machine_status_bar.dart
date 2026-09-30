@@ -16,7 +16,10 @@ const _machineStatusBarHeight = 40.0;
 /// while working in a terminal. Its row is given real layout space by the
 /// workspace, and every visible signal receives the same width.
 class MachineStatusBar extends ConsumerWidget {
-  const MachineStatusBar({super.key});
+  const MachineStatusBar({super.key, required this.windowId});
+
+  /// The window whose focused pane the memory readout follows.
+  final String windowId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,7 +35,7 @@ class MachineStatusBar extends ConsumerWidget {
           )),
         )
         .value;
-    final workspace = ref.watch(terminalWorkspaceProvider);
+    final workspace = ref.watch(terminalWorkspaceProvider(windowId));
     final monitor = ref.watch(processTitleMonitorProvider);
     return ValueListenableBuilder<int>(
       valueListenable: monitor.revision,
