@@ -9,24 +9,24 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.9
-  desktop_drop: ^0.8.0
+  cupertino_icons: ^2.0.0
+  desktop_drop: ^0.8.4
   easy_localization: ^3.0.8
   file_picker: ^11.0.3
   maidpty:
     path: packages/maidpty
-  flutter_local_notifications: ^22.3.0
+  flutter_local_notifications: ^22.3.1
   island_ui_foundation:
     git:
       url: https://src.solsynth.dev/SoSYS/Solian.git
       path: packages/island_ui_foundation
       ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
-  material_ui: ^1.0.1
+  material_ui: ^1.5.0
   flutter_localizations:
     sdk: flutter
   maidterm:
     path: packages/maidterm
-  desktop_multi_window: ^0.3.0
+  desktop_multi_window: ^0.3.1
   window_manager:
     git:
       url: https://github.com/boyan01/window_manager.git
@@ -37,7 +37,7 @@ dependencies:
       url: https://src.solsynth.dev/SoSYS/Solian.git
       path: packages/solsynth_express
       ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
-  hooks_riverpod: ^3.4.2
+  hooks_riverpod: ^3.4.3
   shared_preferences: ^2.5.5
   uuid: ^4.6.0
   collection: ^1.19.1
