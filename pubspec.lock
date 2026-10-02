@@ -314,9 +314,9 @@ packages:
     dependency: transitive
     description:
       path: "packages/flutter_app_update"
-      ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
-      resolved-ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
-      url: "https://src.solsynth.dev/SoSYS/Solian.git"
+      ref: aa257d30a387335ed14977bbb6a03876269dc30a
+      resolved-ref: aa257d30a387335ed14977bbb6a03876269dc30a
+      url: "https://src.solsynth.dev/SoSYS/Socommon.git"
     source: git
     version: "3.2.4"
   flutter_cache_manager:
@@ -522,9 +522,9 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/island_ui_foundation"
-      ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
-      resolved-ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
-      url: "https://src.solsynth.dev/SoSYS/Solian.git"
+      ref: aa257d30a387335ed14977bbb6a03876269dc30a
+      resolved-ref: aa257d30a387335ed14977bbb6a03876269dc30a
+      url: "https://src.solsynth.dev/SoSYS/Socommon.git"
     source: git
     version: "1.0.0"
   jni:
@@ -1047,18 +1047,18 @@ packages:
     dependency: transitive
     description:
       path: "packages/solar_network_foundation"
-      ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
-      resolved-ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
-      url: "https://src.solsynth.dev/SoSYS/Solian.git"
+      ref: aa257d30a387335ed14977bbb6a03876269dc30a
+      resolved-ref: aa257d30a387335ed14977bbb6a03876269dc30a
+      url: "https://src.solsynth.dev/SoSYS/Socommon.git"
     source: git
     version: "0.1.0"
   solsynth_express:
     dependency: "direct main"
     description:
       path: "packages/solsynth_express"
-      ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
-      resolved-ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
-      url: "https://src.solsynth.dev/SoSYS/Solian.git"
+      ref: aa257d30a387335ed14977bbb6a03876269dc30a
+      resolved-ref: aa257d30a387335ed14977bbb6a03876269dc30a
+      url: "https://src.solsynth.dev/SoSYS/Socommon.git"
     source: git
     version: "0.1.0"
   source_map_stack_trace:

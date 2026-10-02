@@ -17,9 +17,9 @@ dependencies:
   flutter_local_notifications: ^22.3.1
   island_ui_foundation:
     git:
-      url: https://src.solsynth.dev/SoSYS/Solian.git
+      url: https://src.solsynth.dev/SoSYS/Socommon.git
       path: packages/island_ui_foundation
-      ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
+      ref: aa257d30a387335ed14977bbb6a03876269dc30a
   material_ui: ^1.5.0
   flutter_localizations:
     sdk: flutter
@@ -28,9 +28,9 @@ dependencies:
   nativeapi_flutter: ^0.4.0
   solsynth_express:
     git:
-      url: https://src.solsynth.dev/SoSYS/Solian.git
+      url: https://src.solsynth.dev/SoSYS/Socommon.git
       path: packages/solsynth_express
-      ref: cec0d7d65e12c1f0a0f4dd35ce6668e6667711bf
+      ref: aa257d30a387335ed14977bbb6a03876269dc30a
   hooks_riverpod: ^3.4.3
   shared_preferences: ^2.5.5
   uuid: ^4.6.0
